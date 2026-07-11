@@ -1,0 +1,6 @@
+{
+  "name": "Learning Roadmap Platform",
+  "description": "An interactive, visually rich canvas-based learning platform that displays concepts as structured roadmaps with automatic AI-driven roadmap generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
