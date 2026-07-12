@@ -1,8 +1,103 @@
-node_modules/
-build/
-dist/
-coverage/
+# Flutter-related
+# -----------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+.metadata
+/build/
+
+# Desktop and Web (Targeting Mobile only)
+# -----------------------
+linux/
+macos/
+windows/
+web/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android-related
+# -----------------------
+**/android/**/generated/
+**/android/gen/
+**/android/local.properties
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+*.jks
+*.keystore
+*.ap_
+*.apk
+*.aab
+
+# iOS-related
+# -----------------------
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/App.framework
+**/ios/Flutter/App.podspec
+**/ios/Flutter/engine_runtimes
+**/ios/Flutter/App.framework.dSYM
+**/ios/Flutter/.last_build_id
+**/ios/.generated/
+**/ios/Pods/
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
+**/ios/DerivedData/
+*.moved-aside
+*.xcuserstate
+*.xcworkspace
+!**/ios/Runner.xcworkspace
+
+# Web-related
+# -----------------------
+lib/generated_plugin_registrant.dart
+
+# macOS-related
+# -----------------------
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+**/macos/Runner/GeneratedPluginRegistrant.swift
+
+# Linux-related
+# -----------------------
+**/linux/flutter/ephemeral/
+**/linux/flutter/generated_plugin_registrant.h
+**/linux/flutter/generated_plugin_registrant.cc
+
+# Windows-related
+# -----------------------
+**/windows/flutter/ephemeral/
+**/windows/flutter/generated_plugin_registrant.h
+**/windows/flutter/generated_plugin_registrant.cc
+**/windows/flutter/generated_plugins.cmake
+
+# IDE-related
+# -----------------------
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+
+# OS-related
+# -----------------------
 .DS_Store
+Thumbs.db
+
+# Miscellaneous
+# -----------------------
 *.log
-.env*
-!.env.example
+doc/api/
+/coverage/
+node_modules/
