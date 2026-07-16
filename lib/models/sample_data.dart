@@ -1,278 +1,544 @@
 import 'roadmap.dart';
 
-final List<Topic> sampleTopics = [
+const sampleCategories = <Category>[
+  Category(
+    id: 'mobile',
+    title: 'Mobile',
+    subtitle: 'Build apps and ship habits',
+    icon: 'smartphone',
+  ),
+  Category(
+    id: 'backend',
+    title: 'Backend',
+    subtitle: 'API design and architecture',
+    icon: 'server',
+  ),
+  Category(
+    id: 'career',
+    title: 'Career',
+    subtitle: 'Learning systems and growth',
+    icon: 'rocket',
+  ),
+];
+
+const sampleGroups = <LearningGroup>[
+  LearningGroup(
+    id: 'bootcamp-pro',
+    title: 'Bootcamp Pro',
+    description: 'Private roadmap for mentored learners.',
+  ),
+];
+
+final sampleTopics = <Topic>[
   Topic(
-    id: 'topic-flutter',
-    title: 'Flutter Development',
-    description: 'Lộ trình học phát triển ứng dụng di động đa nền tảng với Flutter và Dart.',
+    id: 'topic-flutter-foundations',
+    tagIds: const ['mobile'],
+    title: 'Flutter Foundations',
+    description:
+        'Start from setup, understand widgets, and ship a clean first app with a structured learning flow.',
     emoji: '📱',
-    createdAt: DateTime(2026, 1, 1).toIso8601String(),
+    levelLabel: 'Beginner',
+    estimatedHours: 12,
     lessons: [
       Lesson(
-        id: 'lesson-dart-basics',
-        topicId: 'topic-flutter',
-        title: 'Dart Programming Basics',
-        description: 'Học ngôn ngữ Dart, nền tảng của Flutter, từ cơ bản đến nâng cao.',
+        id: 'lesson-flutter-setup',
+        topicId: 'topic-flutter-foundations',
+        title: 'Kickoff and Setup',
+        description:
+            'Create your environment, understand the project shape, and unlock the first runnable screen.',
         order: 1,
-        nodes: [
+        accessLevel: AccessLevel.free,
+        allowedGroupIds: const [],
+        estimatedMinutes: 45,
+        steps: [
           StepNode(
-            id: 'step-dart-1',
-            lessonId: 'lesson-dart-basics',
-            title: 'Variables & Basic Types / Biến & Kiểu dữ liệu',
-            description: 'Tìm hiểu cách khai báo biến, các kiểu dữ liệu cơ bản như String, int, double, bool và từ khóa var, final, const.',
-            emoji: '📦',
-            positionX: 200,
-            positionY: 100,
-            status: StepStatus.completed,
+            id: 'step-sdk',
+            lessonId: 'lesson-flutter-setup',
+            title: 'Install Flutter SDK',
+            description: 'Prepare the base toolchain and verify your setup.',
+            emoji: '🧰',
             order: 1,
+            accessLevel: AccessLevel.free,
+            allowedGroupIds: const [],
+            prerequisiteStepIds: const [],
+            checklist: const [
+              ChecklistItem(
+                id: 'sdk-1',
+                text: 'Install Flutter via the official stable channel.',
+              ),
+              ChecklistItem(
+                id: 'sdk-2',
+                text: 'Run flutter doctor and resolve core blockers.',
+              ),
+              ChecklistItem(
+                id: 'sdk-3',
+                text: 'Create a sandbox project to test the toolchain.',
+              ),
+            ],
+            note:
+                'Store-ready apps start with a predictable environment. Avoid mixing random IDE plugins before the toolchain is healthy.',
+            theory:
+                'Flutter uses a single Dart codebase to render native interfaces on both Android and iOS. Your first milestone is not writing UI, but making the toolchain predictable: Flutter SDK, simulator or emulator, and a first clean run.',
+            codeSnippet:
+                'flutter doctor\nflutter create roadmap_app\ncd roadmap_app\nflutter run',
+            codeLanguage: 'bash',
+            contentBlocks: const [
+              StepContentBlock(
+                id: 'sdk-heading',
+                type: StepContentBlockType.heading,
+                title: 'Start with a **healthy toolchain**',
+                body:
+                    'Before UI work begins, the learner needs confidence that `flutter doctor` and a fresh run actually work.',
+              ),
+              StepContentBlock(
+                id: 'sdk-paragraph',
+                type: StepContentBlockType.paragraph,
+                body:
+                    'Treat this step as infrastructure, not setup ceremony. A predictable environment makes every later support conversation faster and cleaner.',
+              ),
+              StepContentBlock(
+                id: 'sdk-image',
+                type: StepContentBlockType.image,
+                title: 'Environment checkpoint',
+                caption:
+                    'This block is ready for screenshots, diagrams, or annotated setup visuals when real content is authored in admin.',
+              ),
+              StepContentBlock(
+                id: 'sdk-code',
+                type: StepContentBlockType.code,
+                body:
+                    'flutter doctor\nflutter create roadmap_app\ncd roadmap_app\nflutter run',
+                codeLanguage: 'bash',
+              ),
+            ],
+            xpReward: 30,
+            estimatedMinutes: 12,
           ),
           StepNode(
-            id: 'step-dart-2',
-            lessonId: 'lesson-dart-basics',
-            title: 'Operators & Functions / Toán tử & Hàm',
-            description: 'Cách sử dụng toán tử số học, logic, so sánh và viết các hàm có tham số tùy chọn hoặc đặt tên.',
-            emoji: '⚙️',
-            positionX: 500,
-            positionY: 220,
-            status: StepStatus.completed,
+            id: 'step-project-structure',
+            lessonId: 'lesson-flutter-setup',
+            title: 'Read the project structure',
+            description:
+                'Understand where UI, state, and assets should live before scaling the app.',
+            emoji: '🗂️',
             order: 2,
+            accessLevel: AccessLevel.rewarded,
+            allowedGroupIds: const [],
+            prerequisiteStepIds: const ['step-sdk'],
+            checklist: const [
+              ChecklistItem(
+                id: 'structure-1',
+                text: 'Identify the role of lib, assets, android, and ios.',
+              ),
+              ChecklistItem(
+                id: 'structure-2',
+                text: 'Decide where screens, providers, and models will live.',
+              ),
+            ],
+            quiz: const StepQuiz(
+              passThreshold: 2,
+              questions: [
+                QuizQuestion(
+                  id: 'quiz-structure-1',
+                  prompt: 'What folder should contain your app UI code?',
+                  options: ['android', 'lib', 'ios', 'build'],
+                  correctIndex: 1,
+                ),
+                QuizQuestion(
+                  id: 'quiz-structure-2',
+                  prompt: 'What is the main reason to separate models and screens?',
+                  options: [
+                    'To make the bundle larger',
+                    'To slow down hot reload',
+                    'To keep the codebase maintainable',
+                    'To avoid using state management',
+                  ],
+                  correctIndex: 2,
+                ),
+              ],
+            ),
+            note:
+                'Rewarded steps simulate your future monetization path: users learn first, then unlock deeper material by quiz plus reward ad.',
+            theory:
+                'A good learning app grows fast. If you do not decide the folder boundaries early, step content, unlock logic, and future monetization code will end up mixed inside screens.',
+            codeSnippet:
+                'lib/\n  models/\n  providers/\n  screens/\n  widgets/\n  services/',
+            codeLanguage: 'text',
+            contentBlocks: const [
+              StepContentBlock(
+                id: 'structure-heading',
+                type: StepContentBlockType.heading,
+                title: 'Organize for **clarity before scale**',
+                body:
+                    'A clean project tree makes both the learner app and the admin tooling easier to evolve.',
+              ),
+              StepContentBlock(
+                id: 'structure-bullets',
+                type: StepContentBlockType.bullets,
+                title: 'Folders that matter first',
+                items: [
+                  'Keep `models` focused on product data, not widget state.',
+                  'Use `providers` or future services for logic that must survive multiple screens.',
+                  'Treat `screens` as orchestration layers, not as giant storage bins.',
+                ],
+              ),
+              StepContentBlock(
+                id: 'structure-audio',
+                type: StepContentBlockType.audio,
+                title: 'Optional audio explanation',
+                caption:
+                    'This block reserves room for a short spoken explanation or recap without changing the reader layout later.',
+              ),
+            ],
+            xpReward: 45,
+            estimatedMinutes: 15,
           ),
           StepNode(
-            id: 'step-dart-3',
-            lessonId: 'lesson-dart-basics',
-            title: 'Control Flow (If/Else, Loops) / Cấu trúc rẽ nhánh & Vòng lặp',
-            description: 'Sử dụng If-Else, Switch Case, vòng lặp for, while để điều khiển luồng chương trình.',
-            emoji: '🔄',
-            positionX: 200,
-            positionY: 340,
-            status: StepStatus.inProgress,
+            id: 'step-first-screen',
+            lessonId: 'lesson-flutter-setup',
+            title: 'Ship a first screen',
+            description:
+                'Render a simple but intentional home screen to validate layout thinking.',
+            emoji: '✨',
             order: 3,
+            accessLevel: AccessLevel.rewarded,
+            allowedGroupIds: const [],
+            prerequisiteStepIds: const ['step-project-structure'],
+            checklist: const [
+              ChecklistItem(
+                id: 'screen-1',
+                text: 'Build a scaffold with a clear top section and one CTA.',
+              ),
+              ChecklistItem(
+                id: 'screen-2',
+                text: 'Choose a bright palette and one emphasis color.',
+              ),
+              ChecklistItem(
+                id: 'screen-3',
+                text: 'Verify the first screen on both small and tall devices.',
+              ),
+            ],
+            note:
+                'This is where UX starts. Even a placeholder screen should establish hierarchy and spacing discipline.',
+            theory:
+                'The first screen is where you prove the design language. Use contrast, spacing, and one focused action instead of dumping every feature at once.',
+            codeSnippet:
+                'return Scaffold(\n  appBar: AppBar(title: const Text("Roadmap")),\n  body: const Center(child: Text("Hello roadmap")),\n);',
+            codeLanguage: 'dart',
+            xpReward: 55,
+            estimatedMinutes: 18,
           ),
-          StepNode(
-            id: 'step-dart-4',
-            lessonId: 'lesson-dart-basics',
-            title: 'Object-Oriented Programming (OOP) / Hướng đối tượng',
-            description: 'Hiểu về Class, Object, Kế thừa (Inheritance), Đa hình (Polymorphism), Mixins và Interfaces trong Dart.',
-            emoji: '🧩',
-            positionX: 500,
-            positionY: 460,
-            status: StepStatus.notStarted,
-            order: 4,
-          ),
-          StepNode(
-            id: 'step-dart-5',
-            lessonId: 'lesson-dart-basics',
-            title: 'Asynchronous (Future, Stream) / Lập trình bất đồng bộ',
-            description: 'Làm chủ async, await, Future và Stream để xử lý các tác vụ tốn thời gian như gọi API hoặc đọc file.',
-            emoji: '⚡',
-            positionX: 350,
-            positionY: 580,
-            status: StepStatus.notStarted,
-            order: 5,
-          ),
-        ],
-        edges: [
-          Edge(id: 'edge-dart-1', lessonId: 'lesson-dart-basics', from: 'step-dart-1', to: 'step-dart-2'),
-          Edge(id: 'edge-dart-2', lessonId: 'lesson-dart-basics', from: 'step-dart-2', to: 'step-dart-3'),
-          Edge(id: 'edge-dart-3', lessonId: 'lesson-dart-basics', from: 'step-dart-3', to: 'step-dart-4'),
-          Edge(id: 'edge-dart-4', lessonId: 'lesson-dart-basics', from: 'step-dart-4', to: 'step-dart-5'),
         ],
       ),
       Lesson(
-        id: 'lesson-flutter-ui',
-        topicId: 'topic-flutter',
-        title: 'Flutter UI & Widgets',
-        description: 'Xây dựng giao diện người dùng đẹp mắt với hệ thống Widget của Flutter.',
+        id: 'lesson-flutter-learning-app',
+        topicId: 'topic-flutter-foundations',
+        title: 'Design a real learning app flow',
+        description:
+            'Move from demo widgets to a content-first app with progress, quiz unlocks, and a proper step screen.',
         order: 2,
-        nodes: [
+        accessLevel: AccessLevel.premium,
+        allowedGroupIds: const [],
+        estimatedMinutes: 60,
+        steps: [
           StepNode(
-            id: 'step-ui-1',
-            lessonId: 'lesson-flutter-ui',
-            title: 'Stateless vs Stateful Widgets',
-            description: 'Sự khác biệt cốt lõi giữa Widget không trạng thái và Widget có trạng thái, khi nào nên dùng cái nào.',
-            emoji: '🎨',
-            positionX: 200,
-            positionY: 100,
-            status: StepStatus.notStarted,
+            id: 'step-navigation',
+            lessonId: 'lesson-flutter-learning-app',
+            title: 'Plan the navigation stack',
+            description: 'Map Home, Topic, Blog, and Step screens clearly.',
+            emoji: '🧭',
             order: 1,
+            accessLevel: AccessLevel.premium,
+            allowedGroupIds: const [],
+            prerequisiteStepIds: const [],
+            checklist: const [
+              ChecklistItem(
+                id: 'nav-1',
+                text: 'List the user journey from dashboard to step detail.',
+              ),
+              ChecklistItem(
+                id: 'nav-2',
+                text: 'Decide what data can be passed via constructor safely.',
+              ),
+            ],
+            note:
+                'Your own request specifically called out that step content should move to a dedicated screen. This is the right structural change.',
+            theory:
+                'Content-heavy apps should not overload a single page. A dedicated step screen keeps reading focus high and makes room for quiz, notes, checklist, and code.',
+            codeSnippet:
+                'Navigator.of(context).push(\n  MaterialPageRoute(\n    builder: (_) => StepDetailScreen(stepId: step.id),\n  ),\n);',
+            codeLanguage: 'dart',
+            contentBlocks: const [
+              StepContentBlock(
+                id: 'navigation-quote',
+                type: StepContentBlockType.quote,
+                body:
+                    'When the lesson gets longer, the reading experience becomes the product, not just a details panel.',
+              ),
+              StepContentBlock(
+                id: 'navigation-paragraph',
+                type: StepContentBlockType.paragraph,
+                body:
+                    'The dedicated step screen is where future rich content can breathe: images, audio snippets, code, notes, and follow-up actions all have room without crushing the list view.',
+              ),
+              StepContentBlock(
+                id: 'navigation-code',
+                type: StepContentBlockType.code,
+                body:
+                    'Navigator.of(context).push(\n  MaterialPageRoute(\n    builder: (_) => StepDetailScreen(stepId: step.id),\n  ),\n);',
+                codeLanguage: 'dart',
+              ),
+            ],
+            xpReward: 80,
+            estimatedMinutes: 20,
           ),
           StepNode(
-            id: 'step-ui-2',
-            lessonId: 'lesson-flutter-ui',
-            title: 'Basic Widgets (Text, Image, Container)',
-            description: 'Thành thạo các widget cơ bản để vẽ và trang trí layout cơ bản.',
-            emoji: '🖼️',
-            positionX: 500,
-            positionY: 220,
-            status: StepStatus.notStarted,
+            id: 'step-progress-model',
+            lessonId: 'lesson-flutter-learning-app',
+            title: 'Model progress server-first',
+            description:
+                'Design a progress object that can later sync across devices.',
+            emoji: '📈',
             order: 2,
+            accessLevel: AccessLevel.premium,
+            allowedGroupIds: const [],
+            prerequisiteStepIds: const ['step-navigation'],
+            checklist: const [
+              ChecklistItem(
+                id: 'progress-1',
+                text: 'Track completed steps, quiz passes, and unlocked rewarded steps separately.',
+              ),
+              ChecklistItem(
+                id: 'progress-2',
+                text: 'Keep checklist state keyed by step id.',
+              ),
+            ],
+            note:
+                'Even though we are mocking state locally now, the model already anticipates backend sync so you will not repaint everything later.',
+            theory:
+                'A future backend should never trust client-only booleans. Progress needs structure: completion, unlock events, and checklist history per step.',
+            codeSnippet:
+                'class LearningUser {\n  final List<String> completedStepIds;\n  final List<String> passedQuizStepIds;\n  final Map<String, List<String>> checklistState;\n}',
+            codeLanguage: 'dart',
+            xpReward: 90,
+            estimatedMinutes: 18,
           ),
-          StepNode(
-            id: 'step-ui-3',
-            lessonId: 'lesson-flutter-ui',
-            title: 'Layout Widgets (Row, Column, Stack)',
-            description: 'Cách sắp xếp các widget theo hàng ngang, cột dọc hoặc đè lên nhau.',
-            emoji: '📊',
-            positionX: 200,
-            positionY: 340,
-            status: StepStatus.notStarted,
-            order: 3,
-          ),
-        ],
-        edges: [
-          Edge(id: 'edge-ui-1', lessonId: 'lesson-flutter-ui', from: 'step-ui-1', to: 'step-ui-2'),
-          Edge(id: 'edge-ui-2', lessonId: 'lesson-flutter-ui', from: 'step-ui-2', to: 'step-ui-3'),
         ],
       ),
     ],
   ),
   Topic(
-    id: 'topic-java',
-    title: 'Java Programming',
-    description: 'Lộ trình học lập trình hướng đối tượng Java toàn diện cho backend developer.',
-    emoji: '📘',
-    createdAt: DateTime(2026, 1, 5).toIso8601String(),
+    id: 'topic-spring-api',
+    tagIds: const ['backend', 'career'],
+    title: 'Spring API Roadmap',
+    description:
+        'Build a clean backend mental model around auth, CRUD flows, and production boundaries.',
+    emoji: '🛠️',
+    levelLabel: 'Intermediate',
+    estimatedHours: 10,
     lessons: [
       Lesson(
-        id: 'lesson-java-intro',
-        topicId: 'topic-java',
-        title: 'Java Core Fundamentals',
-        description: 'Làm quen với cú pháp Java, kiểu dữ liệu và cấu trúc điều khiển.',
+        id: 'lesson-api-essentials',
+        topicId: 'topic-spring-api',
+        title: 'API essentials',
+        description:
+            'Understand resources, DTOs, and why backend validation must own access control.',
         order: 1,
-        nodes: [
+        accessLevel: AccessLevel.free,
+        allowedGroupIds: const [],
+        estimatedMinutes: 50,
+        steps: [
           StepNode(
-            id: 'step-java-1',
-            lessonId: 'lesson-java-intro',
-            title: 'JDK, JRE & JVM / Cài đặt môi trường',
-            description: 'Hiểu kiến trúc chạy mã Java, cài đặt JDK và viết chương trình HelloWorld đầu tiên.',
-            emoji: '💻',
-            positionX: 200,
-            positionY: 100,
-            status: StepStatus.completed,
+            id: 'step-rest-resources',
+            lessonId: 'lesson-api-essentials',
+            title: 'Shape resources cleanly',
+            description: 'Define stable routes around business objects.',
+            emoji: '🌐',
             order: 1,
+            accessLevel: AccessLevel.free,
+            allowedGroupIds: const [],
+            prerequisiteStepIds: const [],
+            checklist: const [
+              ChecklistItem(
+                id: 'rest-1',
+                text: 'Map Topic, Blog, and Step to clear resource names.',
+              ),
+              ChecklistItem(
+                id: 'rest-2',
+                text: 'Separate request DTOs from persistence entities.',
+              ),
+            ],
+            note:
+                'Your frontend already benefits when the backend speaks the same domain language.',
+            theory:
+                'A clean API names things by business meaning, not database tables. Resource design also shapes permissions and analytics later.',
+            codeSnippet:
+                '@GetMapping("/topics/{topicId}/lessons")\npublic List<LessonResponse> getLessons(...) { ... }',
+            codeLanguage: 'java',
+            xpReward: 35,
+            estimatedMinutes: 15,
           ),
           StepNode(
-            id: 'step-java-2',
-            lessonId: 'lesson-java-intro',
-            title: 'Data Types & Variables / Kiểu dữ liệu',
-            description: 'Kiểu dữ liệu nguyên thủy (primitive) và kiểu đối tượng (reference) trong Java.',
-            emoji: '🔢',
-            positionX: 500,
-            positionY: 220,
-            status: StepStatus.completed,
+            id: 'step-server-guards',
+            lessonId: 'lesson-api-essentials',
+            title: 'Guard premium logic on the server',
+            description:
+                'Keep quiz unlock and premium gates validated outside the client.',
+            emoji: '🔐',
             order: 2,
-          ),
-          StepNode(
-            id: 'step-java-3',
-            lessonId: 'lesson-java-intro',
-            title: 'Conditional Statements / Cấu trúc rẽ nhánh',
-            description: 'Làm quen với if-else, ternary operator và switch-case truyền thống.',
-            emoji: '🌿',
-            positionX: 200,
-            positionY: 340,
-            status: StepStatus.inProgress,
-            order: 3,
+            accessLevel: AccessLevel.group,
+            allowedGroupIds: const ['bootcamp-pro'],
+            prerequisiteStepIds: const ['step-rest-resources'],
+            checklist: const [
+              ChecklistItem(
+                id: 'guard-1',
+                text: 'Verify plan type on the server before returning locked content.',
+              ),
+              ChecklistItem(
+                id: 'guard-2',
+                text: 'Persist quiz results and rewarded unlock events.',
+              ),
+            ],
+            note:
+                'This lesson is group-gated to reflect your future class or mentor distribution model.',
+            theory:
+                'Premium content fails quickly if unlock logic lives only on the device. The app can request, but the backend must decide.',
+            codeSnippet:
+                'if (!permissionService.canViewStep(userId, stepId)) {\n  throw new ForbiddenException("Step locked");\n}',
+            codeLanguage: 'java',
+            xpReward: 70,
+            estimatedMinutes: 22,
           ),
         ],
-        edges: [
-          Edge(id: 'edge-java-1', lessonId: 'lesson-java-intro', from: 'step-java-1', to: 'step-java-2'),
-          Edge(id: 'edge-java-2', lessonId: 'lesson-java-intro', from: 'step-java-2', to: 'step-java-3'),
+      ),
+    ],
+  ),
+  Topic(
+    id: 'topic-learning-system',
+    tagIds: const ['career'],
+    title: 'Learning System for Consistency',
+    description:
+        'Turn content consumption into a streak-driven routine with reflection, checkpoints, and energy management.',
+    emoji: '🎯',
+    levelLabel: 'All levels',
+    estimatedHours: 6,
+    lessons: [
+      Lesson(
+        id: 'lesson-consistency',
+        topicId: 'topic-learning-system',
+        title: 'Consistency loop',
+        description:
+            'Use small wins, checkpoints, and weekly reflection to keep the roadmap alive.',
+        order: 1,
+        accessLevel: AccessLevel.free,
+        allowedGroupIds: const [],
+        estimatedMinutes: 35,
+        steps: [
+          StepNode(
+            id: 'step-daily-goal',
+            lessonId: 'lesson-consistency',
+            title: 'Set a daily minimum',
+            description: 'Pick the smallest repeatable learning unit.',
+            emoji: '🔥',
+            order: 1,
+            accessLevel: AccessLevel.free,
+            allowedGroupIds: const [],
+            prerequisiteStepIds: const [],
+            checklist: const [
+              ChecklistItem(
+                id: 'goal-1',
+                text: 'Define a daily minimum that takes under 20 minutes.',
+              ),
+              ChecklistItem(
+                id: 'goal-2',
+                text: 'Attach the learning block to an existing habit.',
+              ),
+            ],
+            note:
+                'Gamification only works when the loop is realistic. Hard systems collapse, easy systems compound.',
+            theory:
+                'A daily minimum lowers resistance. The streak becomes believable, and the learner is more likely to return tomorrow.',
+            codeSnippet:
+                'Daily target: 1 step + 1 checklist item + 1 reflection note',
+            codeLanguage: 'text',
+            contentBlocks: const [
+              StepContentBlock(
+                id: 'daily-goal-paragraph',
+                type: StepContentBlockType.paragraph,
+                body:
+                    'The best daily target is small enough to survive low-energy days while still reinforcing momentum.',
+              ),
+              StepContentBlock(
+                id: 'daily-goal-callout',
+                type: StepContentBlockType.callout,
+                title: 'Keep the loop believable',
+                body:
+                    'If the learner misses too often, the streak system stops feeling trustworthy and the roadmap loses emotional pull.',
+              ),
+            ],
+            xpReward: 20,
+            estimatedMinutes: 10,
+          ),
         ],
       ),
     ],
   ),
 ];
 
-final List<ClassGroup> sampleClasses = [
-  ClassGroup(
-    id: "class-1",
-    name: "Lập trình di động K22 (Flutter)",
-    code: "LTM-F-K22",
-    room: "Lab 302",
-    createdAt: "2026-01-10T00:00:00.000Z",
+final sampleUsers = <LearningUser>[
+  const LearningUser(
+    id: 'user-free',
+    name: 'Mai Free',
+    email: 'mai@kahoa.app',
+    password: 'kahoa123',
+    avatar: 'M',
+    plan: LearningPlan.free,
+    groupIds: [],
+    streakDays: 4,
+    gems: 120,
+    adsWatched: 1,
+    completedStepIds: ['step-sdk'],
+    unlockedRewardedStepIds: [],
+    passedQuizStepIds: [],
+    checklistState: {
+      'step-sdk': ['sdk-1', 'sdk-2'],
+    },
   ),
-  ClassGroup(
-    id: "class-2",
-    name: "Lập trình Web nâng cao (React/Node)",
-    code: "WEB-ADV-K21",
-    room: "Lab 105",
-    createdAt: "2026-02-15T00:00:00.000Z",
+  const LearningUser(
+    id: 'user-premium',
+    name: 'An Premium',
+    email: 'an@kahoa.app',
+    password: 'kahoa123',
+    avatar: 'A',
+    plan: LearningPlan.premium,
+    groupIds: [],
+    streakDays: 12,
+    gems: 310,
+    adsWatched: 0,
+    completedStepIds: ['step-sdk', 'step-project-structure'],
+    unlockedRewardedStepIds: [],
+    passedQuizStepIds: ['step-project-structure'],
+    checklistState: {
+      'step-sdk': ['sdk-1', 'sdk-2', 'sdk-3'],
+      'step-project-structure': ['structure-1'],
+    },
   ),
-  ClassGroup(
-    id: "class-3",
-    name: "Học máy & Khoa học dữ liệu K20",
-    code: "ML-DS-01",
-    room: "Phòng 402",
-    createdAt: "2026-03-01T00:00:00.000Z",
-  ),
-];
-
-final List<Student> sampleStudents = [
-  Student(
-    id: "stud-1",
-    classId: "class-1",
-    name: "Nguyễn Văn Đạt",
-    studentId: "SV202601",
-    avatarEmoji: "🦊",
-    avatarColor: "#f97316",
-    photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=60",
-    password: "123",
-    createdAt: "2026-01-11T00:00:00.000Z",
-  ),
-  Student(
-    id: "stud-2",
-    classId: "class-1",
-    name: "Lê Minh Thư",
-    studentId: "SV202602",
-    avatarEmoji: "🦄",
-    avatarColor: "#ec4899",
-    photoUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=60",
-    password: "123",
-    createdAt: "2026-01-11T00:00:00.000Z",
-  ),
-  Student(
-    id: "stud-3",
-    classId: "class-1",
-    name: "Trần Thế Bảo",
-    studentId: "SV202603",
-    avatarEmoji: "🦁",
-    avatarColor: "#eab308",
-    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=60",
-    password: "123",
-    createdAt: "2026-01-12T00:00:00.000Z",
-  ),
-  Student(
-    id: "stud-4",
-    classId: "class-2",
-    name: "Phạm Hồng Ngọc",
-    studentId: "SV202604",
-    avatarEmoji: "🌸",
-    avatarColor: "#f43f5e",
-    photoUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=60",
-    password: "123",
-    createdAt: "2026-02-16T00:00:00.000Z",
-  ),
-  Student(
-    id: "stud-5",
-    classId: "class-2",
-    name: "Vũ Quốc Khánh",
-    studentId: "SV202605",
-    avatarEmoji: "🐼",
-    avatarColor: "#64748b",
-    photoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=60",
-    password: "123",
-    createdAt: "2026-02-16T00:00:00.000Z",
-  ),
-  Student(
-    id: "stud-6",
-    classId: "class-3",
-    name: "Hoàng Thanh Hà",
-    studentId: "SV202606",
-    avatarEmoji: "🐨",
-    avatarColor: "#06b6d4",
-    photoUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=60",
-    password: "123",
-    createdAt: "2026-03-02T00:00:00.000Z",
+  const LearningUser(
+    id: 'user-group',
+    name: 'Linh Group',
+    email: 'linh@kahoa.app',
+    password: 'kahoa123',
+    avatar: 'L',
+    plan: LearningPlan.groupPro,
+    groupIds: ['bootcamp-pro'],
+    streakDays: 8,
+    gems: 240,
+    adsWatched: 0,
+    completedStepIds: ['step-rest-resources'],
+    unlockedRewardedStepIds: [],
+    passedQuizStepIds: [],
+    checklistState: {
+      'step-rest-resources': ['rest-1'],
+    },
   ),
 ];
-

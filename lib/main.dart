@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_demo/screens/login_screen.dart';
-import 'package:flutter_demo/screens/splash_screen.dart';
 import 'package:provider/provider.dart';
+
 import 'providers/roadmap_provider.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/app_shell.dart';
+import 'screens/login_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,28 +15,34 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => RoadmapProvider()),
-      ],
+    const seedColor = Color(0xFF2563EB);
+
+    return ChangeNotifierProvider(
+      create: (_) => RoadmapProvider(),
       child: MaterialApp(
-        title: 'Learning Roadmap Platform',
+        title: 'KaHoa',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.deepOrange,
-          primaryColor: Colors.deepOrange,
-          fontFamily: 'Inter',
           useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: seedColor,
+            brightness: Brightness.light,
+            surface: const Color(0xFFF8FAFC),
+          ),
           scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+          fontFamily: 'Roboto',
           appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.white,
-            elevation: 0.5,
-            iconTheme: IconThemeData(color: Colors.black87),
-            titleTextStyle: TextStyle(
-              color: Colors.black87,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Inter',
+            backgroundColor: Colors.transparent,
+            foregroundColor: Color(0xFF0F172A),
+            elevation: 0,
+            centerTitle: false,
+          ),
+          cardTheme: CardThemeData(
+            color: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
           ),
         ),
@@ -44,10 +51,10 @@ class MyApp extends StatelessWidget {
             if (provider.isLoading) {
               return const SplashScreen();
             }
-            if (provider.currentStudent == null) {
+            if (provider.currentUser == null) {
               return const LoginScreen();
             }
-            return const DashboardScreen();
+            return const AppShell();
           },
         ),
       ),

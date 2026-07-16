@@ -1,363 +1,493 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/roadmap.dart';
 import '../models/sample_data.dart';
 
-class RoadmapProvider with ChangeNotifier {
-  static const String _storageKey = 'roadmap_platform_topics_v1';
-  static const String _classesKey = 'roadmap_platform_classes_v1';
-  static const String _studentsKey = 'roadmap_platform_students_v1';
-  static const String _sessionKey = 'roadmap_platform_session_student_v1';
+class RoadmapProvider extends ChangeNotifier {
+  static const _topicsKey = 'kahoa_topics_v5';
+  static const _categoriesKey = 'kahoa_categories_v5';
+  static const _groupsKey = 'kahoa_groups_v5';
+  static const _usersKey = 'kahoa_users_v5';
+  static const _sessionKey = 'kahoa_current_user_v5';
 
-  List<Topic> _topics = [];
   bool _isLoading = true;
+  String? _selectedCategoryId;
+  List<Category> _categories = [];
+  List<LearningGroup> _groups = [];
+  List<Topic> _topics = [];
+  List<LearningUser> _users = [];
+  LearningUser? _currentUser;
 
-  // Classrooms and Students state
-  List<ClassGroup> _classes = [];
-  List<Student> _students = [];
-  Student? _currentStudent;
-
-  // Navigation & selection states
-  Topic? _selectedTopic;
-  Lesson? _selectedLesson;
-  StepNode? _selectedStep;
-
-  List<Topic> get topics => _topics;
   bool get isLoading => _isLoading;
-  Topic? get selectedTopic => _selectedTopic;
-  Lesson? get selectedLesson => _selectedLesson;
-  StepNode? get selectedStep => _selectedStep;
-
-  List<ClassGroup> get classes => _classes;
-  List<Student> get students => _students;
-  Student? get currentStudent => _currentStudent;
-
-  ClassGroup? get currentClass {
-    if (_currentStudent == null) return null;
-    return _classes.firstWhere(
-          (c) => c.id == _currentStudent!.classId,
-      orElse: () => ClassGroup(id: '', name: 'N/A', code: 'N/A', room: '', createdAt: ''),
-    );
-  }
+  String? get selectedCategoryId => _selectedCategoryId;
+  List<Category> get categories => _categories;
+  List<LearningGroup> get groups => _groups;
+  List<Topic> get topics => _topics;
+  List<LearningUser> get demoUsers => _users;
+  LearningUser? get currentUser => _currentUser;
 
   RoadmapProvider() {
-    _initData();
+    _init();
   }
 
-  Future<void> _initData() async {
-    await loadTopics();
-    await loadClassesAndStudents();
-  }
-
-  Future<void> loadClassesAndStudents() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Load Classes
-      final String? savedClasses = prefs.getString(_classesKey);
-      if (savedClasses != null) {
-        final List<dynamic> decoded = jsonDecode(savedClasses);
-        _classes = decoded.map((e) => ClassGroup.fromJson(e)).toList();
-      } else {
-        _classes = List.from(sampleClasses);
-        await prefs.setString(_classesKey, jsonEncode(_classes.map((e) => e.toJson()).toList()));
-      }
-
-      // Load Students
-      final String? savedStudents = prefs.getString(_studentsKey);
-      if (savedStudents != null) {
-        final List<dynamic> decoded = jsonDecode(savedStudents);
-        _students = decoded.map((e) => Student.fromJson(e)).toList();
-      } else {
-        _students = List.from(sampleStudents);
-        await prefs.setString(_studentsKey, jsonEncode(_students.map((e) => e.toJson()).toList()));
-      }
-
-      // Load session
-      final String? savedSession = prefs.getString(_sessionKey);
-      if (savedSession != null) {
-        _currentStudent = Student.fromJson(jsonDecode(savedSession));
-      }
-    } catch (e) {
-      debugPrint('Failed to load classes/students: $e');
-      _classes = List.from(sampleClasses);
-      _students = List.from(sampleStudents);
-    }
+  Future<void> _init() async {
+    await _loadData();
+    _isLoading = false;
     notifyListeners();
   }
 
-  Future<void> loginStudent(Student student) async {
-    _currentStudent = student;
-    notifyListeners(); // Thông báo ngay để UI chuyển sang Dashboard
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_sessionKey, jsonEncode(student.toJson()));
-    } catch (e) {
-      debugPrint('Failed to save student session: $e');
-    }
-  }
-
-  Future<void> logoutStudent() async {
-    _currentStudent = null;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_sessionKey);
-    } catch (e) {
-      debugPrint('Failed to remove student session: $e');
-    }
-    notifyListeners();
-  }
-
-
-  // Load database from SharedPreferences
-  Future<void> loadTopics() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? saved = prefs.getString(_storageKey);
-
-      if (saved != null) {
-        final List<dynamic> decoded = jsonDecode(saved);
-        _topics = decoded.map((e) => Topic.fromJson(e)).toList();
-      } else {
-        _topics = List.from(sampleTopics);
-        await saveTopics();
-      }
-    } catch (e) {
-      debugPrint('Failed to load topics: $e');
-      _topics = List.from(sampleTopics);
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  // Save database to SharedPreferences
-  Future<void> saveTopics() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String encoded = jsonEncode(_topics.map((e) => e.toJson()).toList());
-      await prefs.setString(_storageKey, encoded);
-    } catch (e) {
-      debugPrint('Failed to save topics: $e');
-    }
-  }
-
-  // Navigation Setters
-  void selectTopic(Topic? topic) {
-    _selectedTopic = topic;
-    _selectedLesson = null;
-    _selectedStep = null;
-    notifyListeners();
-  }
-
-  void selectLesson(Lesson? lesson) {
-    _selectedLesson = lesson;
-    _selectedStep = null;
-    notifyListeners();
-  }
-
-  void selectStep(StepNode? step) {
-    _selectedStep = step;
-    notifyListeners();
-  }
-
-  // --- Topic CRUD Actions ---
-  Future<void> addTopic(String title) async {
-    final newTopic = Topic(
-      id: 'topic-${DateTime.now().millisecondsSinceEpoch}',
-      title: title,
-      description: 'Nhấn nút Sửa để điền mô tả cho chủ đề này.',
-      emoji: '🧠',
-      lessons: [],
-      createdAt: DateTime.now().toIso8601String(),
+    _categories = _readList(
+      prefs,
+      _categoriesKey,
+      sampleCategories,
+      (json) => Category.fromJson(json),
     );
-    _topics.add(newTopic);
-    await saveTopics();
-    notifyListeners();
-  }
+    _groups = _readList(
+      prefs,
+      _groupsKey,
+      sampleGroups,
+      (json) => LearningGroup.fromJson(json),
+    );
+    _topics = _readList(
+      prefs,
+      _topicsKey,
+      sampleTopics,
+      (json) => Topic.fromJson(json),
+    );
+    _users = _readList(
+      prefs,
+      _usersKey,
+      sampleUsers,
+      (json) => LearningUser.fromJson(json),
+    );
 
-  Future<void> addGeneratedTopic(Topic topic) async {
-    _topics.add(topic);
-    await saveTopics();
-    selectTopic(topic);
-    if (topic.lessons.isNotEmpty) {
-      selectLesson(topic.lessons.first);
-    }
-    notifyListeners();
-  }
-
-  Future<void> updateTopic(String id, {String? title, String? description, String? emoji}) async {
-    final idx = _topics.indexWhere((t) => t.id == id);
-    if (idx != -1) {
-      if (title != null) _topics[idx].title = title;
-      if (description != null) _topics[idx].description = description;
-      if (emoji != null) _topics[idx].emoji = emoji;
-
-      if (_selectedTopic?.id == id) {
-        _selectedTopic = _topics[idx];
-      }
-      await saveTopics();
-      notifyListeners();
+    final currentUserId = prefs.getString(_sessionKey);
+    if (currentUserId != null) {
+      _currentUser = _users.where((item) => item.id == currentUserId).firstOrNull;
     }
   }
 
-  Future<void> deleteTopic(String id) async {
-    _topics.removeWhere((t) => t.id == id);
-    if (_selectedTopic?.id == id) {
-      _selectedTopic = null;
-      _selectedLesson = null;
-      _selectedStep = null;
-    }
-    await saveTopics();
-    notifyListeners();
-  }
-
-  // --- Lesson CRUD Actions ---
-  Future<void> addLesson(String topicId, String title, String description) async {
-    final topicIdx = _topics.indexWhere((t) => t.id == topicId);
-    if (topicIdx != -1) {
-      final topic = _topics[topicIdx];
-      final newLesson = Lesson(
-        id: 'lesson-${DateTime.now().millisecondsSinceEpoch}',
-        topicId: topicId,
-        title: title,
-        description: description,
-        order: topic.lessons.length + 1,
-        nodes: [],
-        edges: [],
+  List<T> _readList<T>(
+    SharedPreferences prefs,
+    String key,
+    List<T> fallback,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) {
+    final raw = prefs.getString(key);
+    if (raw == null) {
+      prefs.setString(
+        key,
+        jsonEncode(
+          fallback
+              .map((item) => (item as dynamic).toJson() as Map<String, dynamic>)
+              .toList(),
+        ),
       );
-      topic.lessons.add(newLesson);
-      _selectedTopic = topic;
-      _selectedLesson = newLesson;
-      await saveTopics();
-      notifyListeners();
+      return List<T>.from(fallback);
     }
+
+    final decoded = jsonDecode(raw) as List<dynamic>;
+    return decoded
+        .map((item) => fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<void> updateLesson(String lessonId, {String? title, String? description}) async {
-    if (_selectedTopic == null) return;
-
-    final lessonIdx = _selectedTopic!.lessons.indexWhere((l) => l.id == lessonId);
-    if (lessonIdx != -1) {
-      final lesson = _selectedTopic!.lessons[lessonIdx];
-      if (title != null) lesson.title = title;
-      if (description != null) lesson.description = description;
-
-      _selectedLesson = lesson;
-      await saveTopics();
-      notifyListeners();
+  List<Topic> get filteredTopics {
+    if (_selectedCategoryId == null) {
+      return _topics;
     }
+    return _topics
+        .where((item) => item.tagIds.contains(_selectedCategoryId))
+        .toList();
   }
 
-  Future<void> deleteLesson(String lessonId) async {
-    if (_selectedTopic == null) return;
-
-    _selectedTopic!.lessons.removeWhere((l) => l.id == lessonId);
-    if (_selectedLesson?.id == lessonId) {
-      _selectedLesson = null;
-      _selectedStep = null;
+  Category? get selectedCategory {
+    if (_selectedCategoryId == null) {
+      return null;
     }
-    await saveTopics();
+    return _categories.where((item) => item.id == _selectedCategoryId).firstOrNull;
+  }
+
+  void setCategoryFilter(String? categoryId) {
+    _selectedCategoryId = categoryId;
     notifyListeners();
   }
 
-  // --- Step Node CRUD Actions ---
-  Future<void> addStep(String lessonId) async {
-    if (_selectedTopic == null || _selectedLesson == null) return;
+  Topic? topicById(String topicId) {
+    return _topics.where((item) => item.id == topicId).firstOrNull;
+  }
 
-    final nextOrder = _selectedLesson!.nodes.length + 1;
-    final newStep = StepNode(
-      id: 'step-${DateTime.now().millisecondsSinceEpoch}',
-      lessonId: lessonId,
-      title: 'Chủ đề kiến thức mới / New Concept',
-      description: 'Chạm biểu tượng bút để thay đổi nội dung này, thêm ví dụ hoặc checklist học tập.',
-      emoji: '💡',
-      positionX: 300.0,
-      positionY: 100.0 + (nextOrder - 1) * 120.0,
-      status: StepStatus.notStarted,
-      order: nextOrder,
+  Lesson? lessonById(String topicId, String lessonId) {
+    final topic = topicById(topicId);
+    return topic?.lessons.where((item) => item.id == lessonId).firstOrNull;
+  }
+
+  StepNode? stepById(String topicId, String lessonId, String stepId) {
+    final lesson = lessonById(topicId, lessonId);
+    return lesson?.steps.where((item) => item.id == stepId).firstOrNull;
+  }
+
+  Future<void> loginAs(String userId) async {
+    final user = _users.where((item) => item.id == userId).firstOrNull;
+    if (user == null) {
+      return;
+    }
+
+    _currentUser = user;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionKey, userId);
+    notifyListeners();
+  }
+
+  Future<String?> loginWithCredentials({
+    required String email,
+    required String password,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedPassword = password.trim();
+
+    if (normalizedEmail.isEmpty || normalizedPassword.isEmpty) {
+      return 'Enter both email and password.';
+    }
+
+    final user = _users.where((item) => item.email.toLowerCase() == normalizedEmail).firstOrNull;
+    if (user == null || user.password != normalizedPassword) {
+      return 'Incorrect email or password.';
+    }
+
+    _currentUser = user;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionKey, user.id);
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> logout() async {
+    _currentUser = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionKey);
+    notifyListeners();
+  }
+
+  bool get isPremiumUser {
+    if (_currentUser == null) {
+      return false;
+    }
+    return _currentUser!.plan == LearningPlan.premium;
+  }
+
+  bool userHasGroup(List<String> allowedGroupIds) {
+    if (_currentUser == null) {
+      return false;
+    }
+    if (allowedGroupIds.isEmpty) {
+      return true;
+    }
+    return allowedGroupIds.any(_currentUser!.groupIds.contains);
+  }
+
+  bool canAccessLesson(Lesson lesson) {
+    switch (lesson.accessLevel) {
+      case AccessLevel.free:
+      case AccessLevel.rewarded:
+        return true;
+      case AccessLevel.premium:
+        return isPremiumUser;
+      case AccessLevel.group:
+        return userHasGroup(lesson.allowedGroupIds);
+    }
+  }
+
+  bool isStepCompleted(String stepId) {
+    return _currentUser?.completedStepIds.contains(stepId) ?? false;
+  }
+
+  bool hasPassedQuiz(String stepId) {
+    return _currentUser?.passedQuizStepIds.contains(stepId) ?? false;
+  }
+
+  bool hasUnlockedRewardedStep(String stepId) {
+    return _currentUser?.unlockedRewardedStepIds.contains(stepId) ?? false;
+  }
+
+  List<String> checklistProgressFor(String stepId) {
+    return _currentUser?.checklistState[stepId] ?? const [];
+  }
+
+  bool isChecklistComplete(StepNode step) {
+    if (step.checklist.isEmpty) {
+      return true;
+    }
+    final completedIds = checklistProgressFor(step.id).toSet();
+    return step.checklist.every((item) => completedIds.contains(item.id));
+  }
+
+  StepAccessInfo stepAccessInfo({
+    required Lesson lesson,
+    required StepNode step,
+  }) {
+    final completed = isStepCompleted(step.id);
+    final checklistTouched = checklistProgressFor(step.id).isNotEmpty;
+    final prerequisiteId = step.prerequisiteStepIds.firstWhere(
+      (item) => !isStepCompleted(item),
+      orElse: () => '',
+    );
+    final prerequisiteTitle = lesson.steps
+        .where((item) => item.id == prerequisiteId)
+        .map((item) => item.title)
+        .firstOrNull;
+
+    if (completed) {
+      return const StepAccessInfo(
+        canOpen: true,
+        needsQuiz: false,
+        needsRewardAd: false,
+        needsPremium: false,
+        needsGroup: false,
+        message: 'Completed. You can revisit this step anytime.',
+        state: StepVisualState.completed,
+      );
+    }
+
+    if (prerequisiteId.isNotEmpty) {
+      return StepAccessInfo(
+        canOpen: false,
+        needsQuiz: false,
+        needsRewardAd: false,
+        needsPremium: false,
+        needsGroup: false,
+        message: 'Finish the previous step first: ${prerequisiteTitle ?? prerequisiteId}',
+        state: StepVisualState.locked,
+      );
+    }
+
+    if (!canAccessLesson(lesson)) {
+      final needsPremium = lesson.accessLevel == AccessLevel.premium;
+      return StepAccessInfo(
+        canOpen: false,
+        needsQuiz: false,
+        needsRewardAd: false,
+        needsPremium: needsPremium,
+        needsGroup: !needsPremium,
+        message: needsPremium
+            ? 'This blog is available to premium accounts only.'
+            : 'This blog is restricted to a private group.',
+        state: StepVisualState.locked,
+      );
+    }
+
+    if (step.accessLevel == AccessLevel.premium && !isPremiumUser) {
+      return const StepAccessInfo(
+        canOpen: false,
+        needsQuiz: false,
+        needsRewardAd: false,
+        needsPremium: true,
+        needsGroup: false,
+        message: 'Upgrade to premium to open this step.',
+        state: StepVisualState.locked,
+      );
+    }
+
+    if (step.accessLevel == AccessLevel.group && !userHasGroup(step.allowedGroupIds)) {
+      return const StepAccessInfo(
+        canOpen: false,
+        needsQuiz: false,
+        needsRewardAd: false,
+        needsPremium: false,
+        needsGroup: true,
+        message: 'This step belongs to a private group program.',
+        state: StepVisualState.locked,
+      );
+    }
+
+    final quizRequired = step.quiz != null && !hasPassedQuiz(step.id);
+    if (quizRequired) {
+      return StepAccessInfo(
+        canOpen: true,
+        needsQuiz: true,
+        needsRewardAd: false,
+        needsPremium: false,
+        needsGroup: false,
+        message: 'Read this step first, then return to the lesson to take the quiz.',
+        state: checklistTouched
+            ? StepVisualState.inProgress
+            : StepVisualState.ready,
+      );
+    }
+
+    if (step.accessLevel == AccessLevel.rewarded &&
+        !isPremiumUser &&
+        !hasUnlockedRewardedStep(step.id)) {
+      return const StepAccessInfo(
+        canOpen: true,
+        needsQuiz: false,
+        needsRewardAd: true,
+        needsPremium: false,
+        needsGroup: false,
+        message: 'After passing the quiz, use a rewarded ad to finish this step.',
+        state: StepVisualState.inProgress,
+      );
+    }
+
+    return StepAccessInfo(
+      canOpen: true,
+      needsQuiz: false,
+      needsRewardAd: false,
+      needsPremium: false,
+      needsGroup: false,
+      message: 'Ready to learn.',
+      state: checklistTouched ? StepVisualState.inProgress : StepVisualState.ready,
+    );
+  }
+
+  Future<bool> submitQuiz({
+    required StepNode step,
+    required Map<String, int> answers,
+  }) async {
+    if (_currentUser == null || step.quiz == null) {
+      return false;
+    }
+
+    final correctCount = step.quiz!.questions.where((question) {
+      return answers[question.id] == question.correctIndex;
+    }).length;
+
+    if (correctCount < step.quiz!.passThreshold) {
+      return false;
+    }
+
+    final updatedQuizPasses = {..._currentUser!.passedQuizStepIds, step.id}.toList();
+    await _replaceCurrentUser(
+      _currentUser!.copyWith(passedQuizStepIds: updatedQuizPasses),
+    );
+    return true;
+  }
+
+  Future<void> unlockRewardedStep(String stepId) async {
+    if (_currentUser == null) {
+      return;
+    }
+
+    final updatedUnlocked = {
+      ..._currentUser!.unlockedRewardedStepIds,
+      stepId,
+    }.toList();
+
+    await _replaceCurrentUser(
+      _currentUser!.copyWith(
+        unlockedRewardedStepIds: updatedUnlocked,
+        adsWatched: _currentUser!.adsWatched + 1,
+      ),
+    );
+  }
+
+  Future<void> toggleChecklist({
+    required StepNode step,
+    required String itemId,
+  }) async {
+    if (_currentUser == null) {
+      return;
+    }
+
+    final nextState = <String, List<String>>{
+      ..._currentUser!.checklistState,
+    };
+    final completedIds = {...(nextState[step.id] ?? const <String>[])};
+
+    if (completedIds.contains(itemId)) {
+      completedIds.remove(itemId);
+    } else {
+      completedIds.add(itemId);
+    }
+
+    nextState[step.id] = completedIds.toList();
+    await _replaceCurrentUser(_currentUser!.copyWith(checklistState: nextState));
+  }
+
+  Future<void> markStepCompleted(StepNode step) async {
+    if (_currentUser == null) {
+      return;
+    }
+
+    final updatedCompleted = {..._currentUser!.completedStepIds, step.id}.toList();
+    await _replaceCurrentUser(
+      _currentUser!.copyWith(
+        completedStepIds: updatedCompleted,
+        gems: _currentUser!.gems + step.xpReward,
+      ),
+    );
+  }
+
+  double topicProgress(Topic topic) {
+    final allSteps = topic.lessons.expand((item) => item.steps).toList();
+    if (allSteps.isEmpty) {
+      return 0;
+    }
+    final completed = allSteps.where((item) => isStepCompleted(item.id)).length;
+    return completed / allSteps.length;
+  }
+
+  double lessonProgress(Lesson lesson) {
+    if (lesson.steps.isEmpty) {
+      return 0;
+    }
+    final completed = lesson.steps.where((item) => isStepCompleted(item.id)).length;
+    return completed / lesson.steps.length;
+  }
+
+  Map<String, int> get overallStats {
+    final visibleTopics = filteredTopics;
+    final lessonCount = visibleTopics.fold<int>(
+      0,
+      (sum, topic) => sum + topic.lessons.length,
+    );
+    final stepCount = visibleTopics.fold<int>(
+      0,
+      (sum, topic) => sum + topic.lessons.fold<int>(0, (inner, lesson) => inner + lesson.steps.length),
+    );
+    final completedCount = visibleTopics.fold<int>(
+      0,
+      (sum, topic) => sum + topic.lessons.fold<int>(
+        0,
+        (inner, lesson) => inner + lesson.steps.where((step) => isStepCompleted(step.id)).length,
+      ),
     );
 
-    _selectedLesson!.nodes.add(newStep);
-    _selectedStep = newStep;
-    await saveTopics();
-    notifyListeners();
-  }
-
-  Future<void> updateStep(String stepId, {
-    String? title,
-    String? description,
-    String? emoji,
-    StepStatus? status,
-    int? order,
-    List<ChecklistItem>? checklist,
-    String? codeSnippet,
-    String? codeLanguage,
-    String? imageUrl,
-  }) async {
-    if (_selectedLesson == null) return;
-
-    final stepIdx = _selectedLesson!.nodes.indexWhere((n) => n.id == stepId);
-    if (stepIdx != -1) {
-      final step = _selectedLesson!.nodes[stepIdx];
-      if (title != null) step.title = title;
-      if (description != null) step.description = description;
-      if (emoji != null) step.emoji = emoji;
-      if (status != null) step.status = status;
-      if (order != null) step.order = order;
-      if (checklist != null) step.checklist = checklist;
-      if (codeSnippet != null) step.codeSnippet = codeSnippet;
-      if (codeLanguage != null) step.codeLanguage = codeLanguage;
-      if (imageUrl != null) step.imageUrl = imageUrl;
-
-      _selectedStep = step;
-      await saveTopics();
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteStep(String stepId) async {
-    if (_selectedLesson == null) return;
-
-    _selectedLesson!.nodes.removeWhere((n) => n.id == stepId);
-    // Delete any connected edges too
-    _selectedLesson!.edges.removeWhere((e) => e.from == stepId || e.to == stepId);
-
-    if (_selectedStep?.id == stepId) {
-      _selectedStep = null;
-    }
-    await saveTopics();
-    notifyListeners();
-  }
-
-  // --- Statistics Helpers ---
-  Map<String, dynamic> getOverallStats() {
-    final totalTopics = _topics.length;
-    final allLessons = _topics.flatMap((t) => t.lessons);
-    final totalLessons = allLessons.length;
-    final allSteps = allLessons.flatMap((l) => l.nodes);
-    final totalSteps = allSteps.length;
-    final completedSteps = allSteps.where((s) => s.status == StepStatus.completed).length;
-    final percent = totalSteps > 0 ? ((completedSteps / totalSteps) * 100).round() : 0;
+    final percent = stepCount == 0 ? 0 : ((completedCount / stepCount) * 100).round();
 
     return {
-      'totalTopics': totalTopics,
-      'totalLessons': totalLessons,
-      'totalSteps': totalSteps,
-      'completedSteps': completedSteps,
+      'topics': visibleTopics.length,
+      'lessons': lessonCount,
+      'steps': stepCount,
+      'completed': completedCount,
       'percent': percent,
     };
   }
+
+  Future<void> _replaceCurrentUser(LearningUser nextUser) async {
+    _currentUser = nextUser;
+    _users = _users.map((item) => item.id == nextUser.id ? nextUser : item).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _usersKey,
+      jsonEncode(_users.map((item) => item.toJson()).toList()),
+    );
+    await prefs.setString(_sessionKey, nextUser.id);
+    notifyListeners();
+  }
 }
 
-// Simple flatMap helper for lists in Dart
-extension ListFlatMap<T> on List<T> {
-  List<R> flatMap<R>(Iterable<R> Function(T) f) {
-    return map(f).expand((e) => e).toList();
+extension _IterableFirstOrNullExtension<T> on Iterable<T> {
+  T? get firstOrNull {
+    if (isEmpty) {
+      return null;
+    }
+    return first;
   }
 }
