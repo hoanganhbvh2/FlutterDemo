@@ -3,9 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../models/roadmap.dart';
 import '../providers/roadmap_provider.dart';
+import '../widgets/popover_help_button.dart';
 import '../widgets/rich_content.dart';
 
-class StepDetailScreen extends StatelessWidget {
+class StepDetailScreen extends StatefulWidget {
   const StepDetailScreen({
     super.key,
     required this.topicId,
@@ -18,162 +19,274 @@ class StepDetailScreen extends StatelessWidget {
   final String stepId;
 
   @override
+  State<StepDetailScreen> createState() => _StepDetailScreenState();
+}
+
+class _StepDetailScreenState extends State<StepDetailScreen> {
+  late final Future<StepNode?> _loadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFuture = Provider.of<RoadmapProvider>(
+      context,
+      listen: false,
+    ).loadStepDetail(widget.stepId);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = context.watch<RoadmapProvider>();
-    final lesson = provider.lessonById(topicId, lessonId);
-    final step = provider.stepById(topicId, lessonId, stepId);
 
-    if (lesson == null || step == null) {
-      return const Scaffold(
-        body: Center(child: Text('Step not found.')),
-      );
-    }
+    return FutureBuilder<StepNode?>(
+      future: _loadFuture,
+      builder: (context, snapshot) {
+        final lesson = provider.lessonById(widget.topicId, widget.lessonId);
+        final step = provider.stepById(widget.topicId, widget.lessonId, widget.stepId);
 
-    final access = provider.stepAccessInfo(lesson: lesson, step: step);
-    final checklistState = provider.checklistProgressFor(step.id).toSet();
-    final canComplete = provider.isChecklistComplete(step) &&
-        (step.quiz == null || provider.hasPassedQuiz(step.id)) &&
-        (step.accessLevel != AccessLevel.rewarded ||
-            provider.isPremiumUser ||
-            provider.hasUnlockedRewardedStep(step.id));
-    final isCompleted = provider.isStepCompleted(step.id);
+        if (lesson == null || step == null) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
 
-    return PopScope<bool>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
-          return;
+          return const Scaffold(
+            body: Center(child: Text('Step not found.')),
+          );
         }
-        Navigator.of(context).pop(true);
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-          title: Text(
-            step.title,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 2, 20, 32),
-          children: [
-            _StepHero(step: step),
-            const SizedBox(height: 18),
-            if (!access.canOpen)
-              Text(
-                access.message,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.55,
-                  color: Color(0xFFB91C1C),
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            else ...[
-              if (step.quiz != null && !provider.hasPassedQuiz(step.id)) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'When you return to the blog page, the quiz will appear immediately for this step.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                      color: Color(0xFF1D4ED8),
+
+        final access = provider.stepAccessInfo(lesson: lesson, step: step);
+        final checklistState = provider.checklistProgressFor(step.id).toSet();
+        final isChecklistDone = provider.isChecklistComplete(step);
+        final isCompleted = provider.isStepCompleted(step.id);
+        final hasQuizToTake = step.hasQuiz && !provider.hasPassedQuiz(step.id);
+        final shouldPromptQuiz = isChecklistDone && hasQuizToTake;
+
+        return PopScope<bool>(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) {
+              return;
+            }
+            Navigator.of(context).pop(shouldPromptQuiz);
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                onPressed: () => Navigator.of(context).pop(shouldPromptQuiz),
+              ),
+              title: Text(
+                step.title,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            body: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 2, 20, 32),
+              children: [
+                _StepHero(step: step),
+                const SizedBox(height: 18),
+                if (!access.canOpen)
+                  Text(
+                    access.message,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.55,
+                      color: Color(0xFFB91C1C),
                       fontWeight: FontWeight.w600,
                     ),
+                  )
+                else ...[
+                  _SectionLabel(
+                    title: 'Learning content',
+                    subtitle:
+                        'This renderer is block-based so text, notes, images, audio, and code can be mixed freely later.',
+                    helpTitle: step.hasQuiz ? 'Bài Quiz trắc nghiệm' : 'Hướng dẫn làm bài',
+                    helpContent: step.hasQuiz && !provider.hasPassedQuiz(step.id)
+                        ? 'Khi bạn đọc xong bài học, hoàn thành Checklist và quay lại danh sách bài học, bài Quiz trắc nghiệm sẽ tự động xuất hiện để bạn kiểm tra kiến thức và nhận thưởng XP!'
+                        : 'Đọc kỹ nội dung lý thuyết, tham khảo mã nguồn mẫu và hoàn thành các mục thực hành trong Checklist bên dưới.',
                   ),
-                ),
-                const SizedBox(height: 20),
-              ],
-              _SectionLabel(
-                title: 'Learning content',
-                subtitle:
-                    'This renderer is block-based so text, notes, images, audio, and code can be mixed freely later.',
-              ),
-              const SizedBox(height: 14),
-              StepContentRenderer(
-                blocks: step.displayContentBlocks,
-              ),
-              if (step.checklist.isNotEmpty) ...[
-                const SizedBox(height: 28),
-                const _SectionLabel(
-                  title: 'Checklist',
-                  subtitle: 'Complete the practical items before moving on.',
-                ),
-                const SizedBox(height: 10),
-                ...step.checklist.asMap().entries.map(
-                  (entry) => Container(
-                    margin: EdgeInsets.only(
-                      bottom: entry.key == step.checklist.length - 1 ? 0 : 6,
+                  const SizedBox(height: 14),
+                  StepContentRenderer(
+                    blocks: step.displayContentBlocks,
+                  ),
+                  if (step.checklist.isNotEmpty) ...[
+                    const SizedBox(height: 28),
+                    const _SectionLabel(
+                      title: 'Checklist',
+                      subtitle: 'Complete the practical items before moving on.',
                     ),
-                    child: CheckboxListTile(
-                      value: checklistState.contains(entry.value.id),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      dense: true,
-                      title: RichContentText(
-                        entry.value.text,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.5,
-                          color: Color(0xFF334155),
-                        ),
-                      ),
-                      onChanged: (_) {
-                        provider.toggleChecklist(step: step, itemId: entry.value.id);
+                    const SizedBox(height: 10),
+                    ...step.checklist.asMap().entries.map(
+                      (entry) {
+                        final isChecked = checklistState.contains(entry.value.id);
+                        return Container(
+                          margin: EdgeInsets.only(
+                            bottom: entry.key == step.checklist.length - 1 ? 0 : 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isChecked ? const Color(0xFFF0FDF4) : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isChecked ? const Color(0xFF4EB748) : const Color(0xFFE2E8F0),
+                              width: isChecked ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              provider.toggleChecklist(
+                                step: step,
+                                itemId: entry.value.id,
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: Checkbox(
+                                      value: isChecked,
+                                      activeColor: const Color(0xFF4EB748),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      onChanged: (_) {
+                                        provider.toggleChecklist(
+                                          step: step,
+                                          itemId: entry.value.id,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: RichContentText(
+                                        entry.value.text,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          height: 1.5,
+                                          color: isChecked
+                                              ? const Color(0xFF166534)
+                                              : const Color(0xFF334155),
+                                          decoration: isChecked ? TextDecoration.lineThrough : null,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 28),
-              if (!isCompleted)
-                FilledButton(
-                  onPressed: canComplete
-                      ? () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          await provider.markStepCompleted(step);
-                          if (!context.mounted) {
-                            return;
-                          }
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text('Step marked as completed.'),
+                  ],
+                  const SizedBox(height: 28),
+                  if (!isCompleted)
+                    FilledButton(
+                      onPressed: isChecklistDone
+                          ? () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              if (hasQuizToTake) {
+                                Navigator.of(context).pop(true);
+                              } else {
+                                await provider.markStepCompleted(step);
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: const Color(0xFF166534),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    content: Row(
+                                      children: [
+                                        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            'Chúc mừng! Bạn đã hoàn thành bước học (+${step.xpReward} XP)',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                                Navigator.of(context).pop(false);
+                              }
+                            }
+                          : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF124DA3),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        isChecklistDone
+                            ? (hasQuizToTake
+                                ? 'Hoàn thành & Làm Quiz nhận thưởng'
+                                : 'Xác nhận hoàn thành')
+                            : 'Hãy tích đủ Checklist bên trên',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  if (isCompleted)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF4EB748).withValues(alpha: 0.5), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4EB748).withValues(alpha: 0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle_rounded, color: Color(0xFF166534), size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            'Bạn đã hoàn thành bước học này!',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF166534),
                             ),
-                          );
-                        }
-                      : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF1D4ED8),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                  ),
-                  child: Text(
-                    canComplete
-                        ? 'Mark as completed'
-                        : 'Finish the checklist and quiz first',
-                  ),
-                ),
-              if (isCompleted)
-                const Text(
-                  'This step is complete. You can return to the step list and continue.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF166534),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-            ],
-          ],
-        ),
-      ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -188,7 +301,7 @@ class _StepHero extends StatelessWidget {
     final mediaSignals = <String>[
       if (step.hasImageBlock) 'image',
       if (step.hasAudioBlock) 'audio',
-      if (step.quiz != null) 'quiz',
+      if (step.hasQuiz) 'quiz',
       if (step.checklist.isNotEmpty) 'checklist',
     ];
 
@@ -240,8 +353,7 @@ class _StepHero extends StatelessWidget {
               _InfoBadge(label: '${step.xpReward} xp'),
               _InfoBadge(label: _accessLabel(step.accessLevel)),
               _InfoBadge(label: '${step.displayContentBlocks.length} blocks'),
-              if (mediaSignals.isNotEmpty)
-                _InfoBadge(label: mediaSignals.join(' / ')),
+              if (mediaSignals.isNotEmpty) _InfoBadge(label: mediaSignals.join(' / ')),
             ],
           ),
         ],
@@ -252,7 +364,7 @@ class _StepHero extends StatelessWidget {
   String _accessLabel(AccessLevel accessLevel) {
     return switch (accessLevel) {
       AccessLevel.free => 'Open',
-      AccessLevel.rewarded => 'Quiz + ad',
+      AccessLevel.rewarded => 'Quiz unlock',
       AccessLevel.premium => 'Premium',
       AccessLevel.group => 'Group',
     };
@@ -263,23 +375,38 @@ class _SectionLabel extends StatelessWidget {
   const _SectionLabel({
     required this.title,
     required this.subtitle,
+    this.helpTitle,
+    this.helpContent,
   });
 
   final String title;
   final String subtitle;
+  final String? helpTitle;
+  final String? helpContent;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-          ),
+        Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            if (helpTitle != null && helpContent != null) ...[
+              const SizedBox(width: 8),
+              PopoverHelpButton(
+                title: helpTitle!,
+                content: helpContent!,
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 4),
         Text(

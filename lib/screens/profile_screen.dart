@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/roadmap.dart';
 import '../providers/roadmap_provider.dart';
+import '../widgets/popover_help_button.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -50,9 +51,14 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        children: [
+      body: RefreshIndicator(
+        onRefresh: provider.refreshData,
+        color: const Color(0xFF124DA3),
+        backgroundColor: Colors.white,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
@@ -64,11 +70,11 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 34,
-                  backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                  backgroundColor: const Color(0xFF124DA3).withValues(alpha: 0.12),
                   child: Text(
                     user.avatar,
                     style: const TextStyle(
-                      color: Color(0xFF2563EB),
+                      color: Color(0xFF124DA3),
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                     ),
@@ -97,15 +103,15 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE0F2FE),
+                          color: const Color(0xFF124DA3).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           planLabel,
                           style: const TextStyle(
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF124DA3),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -123,7 +129,7 @@ class ProfileScreen extends StatelessWidget {
                 child: _MetricCard(
                   title: 'Streak',
                   value: '${user.streakDays} days',
-                  color: const Color(0xFFF97316),
+                  color: const Color(0xFFF37022),
                 ),
               ),
               const SizedBox(width: 12),
@@ -131,7 +137,7 @@ class ProfileScreen extends StatelessWidget {
                 child: _MetricCard(
                   title: 'Points',
                   value: '${user.gems}',
-                  color: const Color(0xFFF59E0B),
+                  color: const Color(0xFFF37022),
                 ),
               ),
             ],
@@ -142,16 +148,16 @@ class ProfileScreen extends StatelessWidget {
               Expanded(
                 child: _MetricCard(
                   title: 'Completed',
-                  value: '${stats['completed']} step',
-                  color: const Color(0xFF16A34A),
+                  value: '${stats['completed']} steps',
+                  color: const Color(0xFF4EB748),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _MetricCard(
-                  title: 'Unlocks',
-                  value: '${user.adsWatched}',
-                  color: const Color(0xFF2563EB),
+                  title: 'Groups',
+                  value: '${groupTitles.length}',
+                  color: const Color(0xFF124DA3),
                 ),
               ),
             ],
@@ -167,13 +173,23 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Current access',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'Current access level',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const PopoverHelpButton(
+                      title: 'Quyền truy cập & Nhóm học',
+                      content:
+                          '• FREE: Truy cập toàn bộ các bài học cơ bản miễn phí.\n\n• PREMIUM: Mở khóa tất cả bài học nâng cao mà không cần xem quảng cáo.\n\n• GROUP: Dành riêng cho học viên thuộc các lớp / nhóm được cấp mã kích hoạt.',
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -185,7 +201,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 if (groupTitles.isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Text(
                     'Active groups: ${groupTitles.join(', ')}',
                     style: const TextStyle(
@@ -194,11 +210,91 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showRedeemCodeDialog(context, provider),
+                    icon: const Icon(Icons.vpn_key_outlined, size: 18),
+                    label: const Text('Join Group / Redeem Access Code'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF124DA3),
+                      side: const BorderSide(color: Color(0xFF124DA3)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showRedeemCodeDialog(BuildContext context, RoadmapProvider provider) {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Redeem Code / Group Access',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter an invite code or group key to unlock specialized topics.',
+                style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  hintText: 'e.g. VIP-GROUP-2026',
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final code = controller.text.trim();
+                Navigator.of(dialogContext).pop();
+                if (code.isNotEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Access code "$code" redeemed successfully.'),
+                    ),
+                  );
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF124DA3),
+              ),
+              child: const Text('Redeem'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

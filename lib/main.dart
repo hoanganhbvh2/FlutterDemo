@@ -15,17 +15,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seedColor = Color(0xFF2563EB);
+    const seedColor = Color(0xFF124DA3);
 
     return ChangeNotifierProvider(
       create: (_) => RoadmapProvider(),
       child: MaterialApp(
-        title: 'KaHoa',
+        title: 'Học Mẹo',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
             seedColor: seedColor,
+            primary: const Color(0xFF124DA3),
+            secondary: const Color(0xFF4EB748),
+            tertiary: const Color(0xFFF37022),
             brightness: Brightness.light,
             surface: const Color(0xFFF8FAFC),
           ),
@@ -39,8 +42,8 @@ class MyApp extends StatelessWidget {
           ),
           cardTheme: CardThemeData(
             color: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),

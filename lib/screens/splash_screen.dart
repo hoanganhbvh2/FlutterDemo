@@ -23,37 +23,32 @@ class SplashScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 88,
-                height: 88,
+                width: 100,
+                height: 100,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                      color: const Color(0xFF124DA3).withValues(alpha: 0.15),
                       blurRadius: 32,
-                      offset: const Offset(0, 20),
+                      offset: const Offset(0, 16),
                     ),
                   ],
                 ),
-                child: const Center(
-                  child: Text(
-                    'RL',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF2563EB),
-                    ),
-                  ),
+                child: Image.asset(
+                  'assets/logo.png',
+                  fit: BoxFit.contain,
                 ),
               ),
               const SizedBox(height: 20),
               const Text(
-                'KaHoa',
+                'Học Mẹo',
                 style: TextStyle(
-                  fontSize: 26,
+                  fontSize: 28,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
+                  color: Color(0xFF124DA3),
                 ),
               ),
               const SizedBox(height: 8),

@@ -24,7 +24,7 @@ const sampleCategories = <Category>[
 const sampleGroups = <LearningGroup>[
   LearningGroup(
     id: 'bootcamp-pro',
-    title: 'Bootcamp Pro',
+    title: 'LTM-F-K22',
     description: 'Private roadmap for mentored learners.',
   ),
 ];

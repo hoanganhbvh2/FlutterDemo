@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/roadmap_provider.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -97,21 +98,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB).withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            'KAHOA',
-                            style: TextStyle(
-                              color: Color(0xFF2563EB),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                              letterSpacing: 0.8,
+                        Row(
+                          children: [
+                            Image.asset(
+                              'assets/logo.png',
+                              height: 38,
+                              fit: BoxFit.contain,
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'HỌC MẸO',
+                              style: TextStyle(
+                                color: Color(0xFF124DA3),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 18),
                         const Text(
@@ -125,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Sign in to continue with KaHoa, restore your saved progress, and keep moving through each step in sequence.',
+                          'Sign in to continue with Học Mẹo, restore your saved progress, and keep moving through each step in sequence.',
                           style: TextStyle(
                             fontSize: 15,
                             height: 1.55,
@@ -148,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const _FieldLabel(label: 'Email'),
+                              const _FieldLabel(label: 'Email or username'),
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _emailController,
@@ -156,15 +160,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                 textInputAction: TextInputAction.next,
                                 autofillHints: const [AutofillHints.username, AutofillHints.email],
                                 decoration: _inputDecoration(
-                                  hintText: 'you@example.com',
+                                  hintText: 'you@example.com or your username',
                                 ),
                                 validator: (value) {
                                   final text = value?.trim() ?? '';
                                   if (text.isEmpty) {
-                                    return 'Enter your email.';
-                                  }
-                                  if (!text.contains('@')) {
-                                    return 'Enter a valid email address.';
+                                    return 'Enter your email or username.';
                                   }
                                   return null;
                                 },
@@ -223,6 +224,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                     padding: const EdgeInsets.symmetric(vertical: 15),
                                   ),
                                   child: Text(_isSubmitting ? 'Signing in...' : 'Sign in'),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const RegisterScreen(),
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 15),
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                  ),
+                                  child: const Text('Don\'t have an account? Sign up'),
                                 ),
                               ),
                             ],

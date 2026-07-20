@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/roadmap.dart';
 import '../providers/roadmap_provider.dart';
+import '../widgets/popover_help_button.dart';
 import '../widgets/rich_content.dart';
 import 'lesson_detail_screen.dart';
 
@@ -47,13 +48,21 @@ class TopicDetailScreen extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [
-                  Color(0xFFFFFBEB),
-                  Color(0xFFE0F2FE),
+                  Color(0xFFFFF7ED),
+                  Color(0xFFFFEDD5),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFF37022).withValues(alpha: 0.3)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF37022).withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +90,7 @@ class TopicDetailScreen extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    _MetaPill(label: topic.levelLabel),
+                    _MetaPill(label: topic.levelLabel, isOrange: true),
                     _MetaPill(label: '${topic.lessons.length} blogs'),
                     _MetaPill(label: '$totalSteps steps'),
                     _MetaPill(label: '${(progress * 100).round()}% complete'),
@@ -93,7 +102,7 @@ class TopicDetailScreen extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: topicTags
-                        .map((tag) => _MetaPill(label: '#${tag.title}'))
+                        .map((tag) => _MetaPill(label: '#${tag.title}', isOrange: true))
                         .toList(),
                   ),
                 ],
@@ -102,132 +111,78 @@ class TopicDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _SignalColumn(
-                    label: 'Estimated time',
-                    value: '${topic.estimatedHours} hours',
-                  ),
-                ),
-                Expanded(
-                  child: _SignalColumn(
-                    label: 'Content mode',
-                    value: mediaSteps == 0 ? 'Text-first' : 'Mixed media ready',
-                  ),
-                ),
-                Expanded(
-                  child: _SignalColumn(
-                    label: 'Structure',
-                    value: '${topic.lessons.length} blogs / $totalSteps steps',
-                  ),
+              border: Border.all(color: const Color(0xFFF37022).withValues(alpha: 0.25)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF37022).withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Topic overview',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: topic.lessons
-                  .asMap()
-                  .entries
-                  .map(
-                    (entry) => Padding(
-                      padding: EdgeInsets.only(
-                        bottom: entry.key == topic.lessons.length - 1 ? 0 : 16,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 30,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${entry.value.order}',
-                              style: const TextStyle(
-                                color: Color(0xFF2563EB),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text.rich(
-                                  TextSpan(
-                                    style: const TextStyle(
-                                      color: Color(0xFF0F172A),
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                    children: [
-                                      TextSpan(text: entry.value.title),
-                                      TextSpan(
-                                        text: '  ·  ${entry.value.steps.length} steps',
-                                        style: const TextStyle(
-                                          color: Color(0xFF64748B),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                RichContentText(
-                                  entry.value.description,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    height: 1.5,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _SignalColumn(
+                      icon: Icons.schedule_rounded,
+                      iconColor: const Color(0xFFF37022),
+                      label: 'Estimated time',
+                      value: '${topic.estimatedHours}h total',
                     ),
-                  )
-                  .toList(),
+                  ),
+                  const VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: Color(0xFFFED7AA),
+                  ),
+                  Expanded(
+                    child: _SignalColumn(
+                      icon: Icons.auto_stories_rounded,
+                      iconColor: const Color(0xFFF37022),
+                      label: 'Content mode',
+                      value: mediaSteps == 0 ? 'Text-first' : 'Mixed media',
+                    ),
+                  ),
+                  const VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: Color(0xFFFED7AA),
+                  ),
+                  Expanded(
+                    child: _SignalColumn(
+                      icon: Icons.account_tree_rounded,
+                      iconColor: const Color(0xFFF37022),
+                      label: 'Structure',
+                      value: '${topic.lessons.length} blogs • $totalSteps steps',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Blogs',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-            ),
+          Row(
+            children: [
+              const Text(
+                'Blogs',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const PopoverHelpButton(
+                title: 'Các bài học (Blogs)',
+                content:
+                    'Mỗi Blog bao gồm một chuỗi các bước (Steps) xây dựng kiến thức bài bản.\n\nNhấn vào từng Blog để bắt đầu làm bài, đọc lý thuyết, thực hành code và giải Quiz củng cố kiến thức.',
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           ...topic.lessons.map(
@@ -319,7 +274,7 @@ class _LessonCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: canAccess
-                        ? const Color(0xFFDCFCE7)
+                        ? const Color(0xFF4EB748).withValues(alpha: 0.12)
                         : const Color(0xFFFEE2E2),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -361,7 +316,7 @@ class _LessonCard extends StatelessWidget {
                 value: progress,
                 minHeight: 8,
                 backgroundColor: const Color(0xFFE2E8F0),
-                color: const Color(0xFF2563EB),
+                color: const Color(0xFF4EB748),
               ),
             ),
           ],
@@ -373,35 +328,53 @@ class _LessonCard extends StatelessWidget {
 
 class _SignalColumn extends StatelessWidget {
   const _SignalColumn({
+    required this.icon,
+    required this.iconColor,
     required this.label,
     required this.value,
   });
 
+  final IconData icon;
+  final Color iconColor;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF94A3B8),
-            ),
+          Row(
+            children: [
+              Icon(icon, size: 13, color: iconColor),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Text(
             value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
               color: Color(0xFF0F172A),
+              height: 1.25,
             ),
           ),
         ],
@@ -411,25 +384,40 @@ class _SignalColumn extends StatelessWidget {
 }
 
 class _MetaPill extends StatelessWidget {
-  const _MetaPill({required this.label});
+  const _MetaPill({
+    required this.label,
+    this.isOrange = false,
+  });
 
   final String label;
+  final bool isOrange;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isOrange ? const Color(0xFFF37022) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isOrange ? const Color(0xFFF37022) : const Color(0xFFFED7AA),
+        ),
+        boxShadow: isOrange
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFF37022).withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                )
+              ]
+            : null,
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF334155),
+          color: isOrange ? Colors.white : const Color(0xFF9A3412),
         ),
       ),
     );

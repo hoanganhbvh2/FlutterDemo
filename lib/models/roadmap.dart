@@ -30,6 +30,13 @@ enum StepContentBlockType {
   divider,
 }
 
+enum ProgressStatus {
+  notStarted,
+  inProgress,
+  completed,
+  locked,
+}
+
 class Category {
   final String id;
   final String title;
@@ -45,10 +52,10 @@ class Category {
 
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? '',
-      subtitle: json['subtitle'] as String? ?? '',
-      icon: json['icon'] as String? ?? 'school',
+      id: _stringValue(json['id']),
+      title: _stringValue(json['title']),
+      subtitle: _stringValue(json['subtitle'] ?? json['description']),
+      icon: _stringValue(json['icon'], fallback: 'school'),
     );
   }
 
@@ -73,8 +80,8 @@ class ChecklistItem {
 
   factory ChecklistItem.fromJson(Map<String, dynamic> json) {
     return ChecklistItem(
-      id: json['id'] as String? ?? '',
-      text: json['text'] as String? ?? '',
+      id: _stringValue(json['id']),
+      text: _stringValue(json['text']),
     );
   }
 
@@ -100,15 +107,11 @@ class QuizQuestion {
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
-    final options = (json['options'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => item.toString())
-        .toList();
-
     return QuizQuestion(
-      id: json['id'] as String? ?? '',
-      prompt: json['prompt'] as String? ?? '',
-      options: options,
-      correctIndex: json['correctIndex'] as int? ?? 0,
+      id: _stringValue(json['id']),
+      prompt: _stringValue(json['prompt']),
+      options: _stringList(json['options']),
+      correctIndex: _intValue(json['correctIndex']),
     );
   }
 
@@ -132,12 +135,20 @@ class StepQuiz {
   });
 
   factory StepQuiz.fromJson(Map<String, dynamic> json) {
-    final questions = (json['questions'] as List<dynamic>? ?? <dynamic>[])
+    final questions = (json['questions'] as List<dynamic>? ?? const <dynamic>[])
         .map((item) => QuizQuestion.fromJson(item as Map<String, dynamic>))
         .toList();
 
+    var threshold = _intValue(
+      json['passThreshold'],
+      fallback: questions.isEmpty ? 0 : questions.length,
+    );
+    if (questions.isNotEmpty && threshold > questions.length) {
+      threshold = questions.length;
+    }
+
     return StepQuiz(
-      passThreshold: json['passThreshold'] as int? ?? questions.length,
+      passThreshold: threshold,
       questions: questions,
     );
   }
@@ -172,23 +183,15 @@ class StepContentBlock {
   });
 
   factory StepContentBlock.fromJson(Map<String, dynamic> json) {
-    final typeName = json['type'] as String? ?? StepContentBlockType.paragraph.name;
-    final type = StepContentBlockType.values.firstWhere(
-      (item) => item.name == typeName,
-      orElse: () => StepContentBlockType.paragraph,
-    );
-
     return StepContentBlock(
-      id: json['id'] as String? ?? '',
-      type: type,
-      title: json['title'] as String? ?? '',
-      body: json['body'] as String? ?? '',
-      items: (json['items'] as List<dynamic>? ?? <dynamic>[])
-          .map((item) => item.toString())
-          .toList(),
-      mediaUrl: json['mediaUrl'] as String? ?? '',
-      caption: json['caption'] as String? ?? '',
-      codeLanguage: json['codeLanguage'] as String? ?? '',
+      id: _stringValue(json['id']),
+      type: _parseBlockType(json['type']),
+      title: _stringValue(json['title']),
+      body: _stringValue(json['body']),
+      items: _stringList(json['items']),
+      mediaUrl: _stringValue(json['mediaUrl']),
+      caption: _stringValue(json['caption']),
+      codeLanguage: _stringValue(json['codeLanguage']),
     );
   }
 
@@ -267,6 +270,9 @@ class StepNode {
   final List<StepContentBlock> contentBlocks;
   final int xpReward;
   final int estimatedMinutes;
+  final ProgressStatus progressStatus;
+  final List<String> completedChecklist;
+  final int quizScore;
 
   const StepNode({
     required this.id,
@@ -287,52 +293,102 @@ class StepNode {
     required this.xpReward,
     required this.estimatedMinutes,
     this.quiz,
+    this.progressStatus = ProgressStatus.notStarted,
+    this.completedChecklist = const [],
+    this.quizScore = 0,
   });
 
-  factory StepNode.fromJson(Map<String, dynamic> json) {
-    final checklistItems = (json['checklist'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => ChecklistItem.fromJson(item as Map<String, dynamic>))
-        .toList();
-
-    final groupIds = (json['allowedGroupIds'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => item.toString())
-        .toList();
-
-    final prerequisiteIds =
-        (json['prerequisiteStepIds'] as List<dynamic>? ?? <dynamic>[])
-            .map((item) => item.toString())
-            .toList();
-
-    final accessName = json['accessLevel'] as String? ?? AccessLevel.free.name;
-    final accessLevel = AccessLevel.values.firstWhere(
-      (item) => item.name == accessName,
-      orElse: () => AccessLevel.free,
+  StepNode copyWith({
+    String? id,
+    String? lessonId,
+    String? title,
+    String? description,
+    String? emoji,
+    int? order,
+    AccessLevel? accessLevel,
+    List<String>? allowedGroupIds,
+    List<String>? prerequisiteStepIds,
+    List<ChecklistItem>? checklist,
+    StepQuiz? quiz,
+    bool clearQuiz = false,
+    String? note,
+    String? theory,
+    String? codeSnippet,
+    String? codeLanguage,
+    List<StepContentBlock>? contentBlocks,
+    int? xpReward,
+    int? estimatedMinutes,
+    ProgressStatus? progressStatus,
+    List<String>? completedChecklist,
+    int? quizScore,
+  }) {
+    return StepNode(
+      id: id ?? this.id,
+      lessonId: lessonId ?? this.lessonId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      emoji: emoji ?? this.emoji,
+      order: order ?? this.order,
+      accessLevel: accessLevel ?? this.accessLevel,
+      allowedGroupIds: allowedGroupIds ?? this.allowedGroupIds,
+      prerequisiteStepIds: prerequisiteStepIds ?? this.prerequisiteStepIds,
+      checklist: checklist ?? this.checklist,
+      quiz: clearQuiz ? null : (quiz ?? this.quiz),
+      note: note ?? this.note,
+      theory: theory ?? this.theory,
+      codeSnippet: codeSnippet ?? this.codeSnippet,
+      codeLanguage: codeLanguage ?? this.codeLanguage,
+      contentBlocks: contentBlocks ?? this.contentBlocks,
+      xpReward: xpReward ?? this.xpReward,
+      estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
+      progressStatus: progressStatus ?? this.progressStatus,
+      completedChecklist: completedChecklist ?? this.completedChecklist,
+      quizScore: quizScore ?? this.quizScore,
     );
+  }
 
-    final quizJson = json['quiz'] as Map<String, dynamic>?;
-    final contentBlocks = (json['contentBlocks'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => StepContentBlock.fromJson(item as Map<String, dynamic>))
+  factory StepNode.fromJson(Map<String, dynamic> json) {
+    final checklist = _parseChecklist(json['checklist']);
+    final passThreshold = _intValue(json['passThreshold']);
+    final quizQuestions = (json['quizQuestions'] as List<dynamic>? ?? const <dynamic>[])
+        .map((item) => QuizQuestion.fromJson(item as Map<String, dynamic>))
         .toList();
+
+    StepQuiz? quiz;
+    final quizJson = json['quiz'];
+    if (quizJson is Map<String, dynamic>) {
+      quiz = StepQuiz.fromJson(quizJson);
+    } else if (quizQuestions.isNotEmpty || passThreshold > 0) {
+      quiz = StepQuiz(
+        passThreshold: passThreshold > 0 ? passThreshold : quizQuestions.length,
+        questions: quizQuestions,
+      );
+    }
 
     return StepNode(
-      id: json['id'] as String? ?? '',
-      lessonId: json['lessonId'] as String? ?? '',
-      title: json['title'] as String? ?? '',
-      description: json['description'] as String? ?? '',
-      emoji: json['emoji'] as String? ?? 'book',
-      order: json['order'] as int? ?? 1,
-      accessLevel: accessLevel,
-      allowedGroupIds: groupIds,
-      prerequisiteStepIds: prerequisiteIds,
-      checklist: checklistItems,
-      note: json['note'] as String? ?? '',
-      theory: json['theory'] as String? ?? '',
-      codeSnippet: json['codeSnippet'] as String? ?? '',
-      codeLanguage: json['codeLanguage'] as String? ?? '',
-      contentBlocks: contentBlocks,
-      xpReward: json['xpReward'] as int? ?? 30,
-      estimatedMinutes: json['estimatedMinutes'] as int? ?? 10,
-      quiz: quizJson == null ? null : StepQuiz.fromJson(quizJson),
+      id: _stringValue(json['id']),
+      lessonId: _stringValue(json['lessonId']),
+      title: _stringValue(json['title']),
+      description: _stringValue(json['description'] ?? json['summary']),
+      emoji: _stringValue(json['emoji'], fallback: 'book'),
+      order: _intValue(json['order'] ?? json['orderIndex'], fallback: 1),
+      accessLevel: _parseAccessLevel(json['accessLevel']),
+      allowedGroupIds: _stringList(json['allowedGroupIds']),
+      prerequisiteStepIds: _stringList(json['prerequisiteStepIds']),
+      checklist: checklist,
+      quiz: quiz,
+      note: _stringValue(json['note']),
+      theory: _stringValue(json['theory']),
+      codeSnippet: _stringValue(json['codeSnippet']),
+      codeLanguage: _stringValue(json['codeLanguage']),
+      contentBlocks: (json['contentBlocks'] as List<dynamic>? ?? const <dynamic>[])
+          .map((item) => StepContentBlock.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      xpReward: _intValue(json['xpReward'], fallback: 30),
+      estimatedMinutes: _intValue(json['estimatedMinutes'], fallback: 10),
+      progressStatus: _parseProgressStatus(json['progressStatus']),
+      completedChecklist: _stringList(json['completedChecklist']),
+      quizScore: _intValue(json['quizScore']),
     );
   }
 
@@ -356,6 +412,9 @@ class StepNode {
       'xpReward': xpReward,
       'estimatedMinutes': estimatedMinutes,
       'quiz': quiz?.toJson(),
+      'progressStatus': progressStatus.name,
+      'completedChecklist': completedChecklist,
+      'quizScore': quizScore,
     };
   }
 
@@ -363,6 +422,7 @@ class StepNode {
     if (contentBlocks.isNotEmpty) {
       return contentBlocks;
     }
+
     return StepContentBlock.legacyBlocks(
       theory: theory,
       note: note,
@@ -376,6 +436,15 @@ class StepNode {
 
   bool get hasAudioBlock =>
       displayContentBlocks.any((item) => item.type == StepContentBlockType.audio);
+
+  bool get hasQuiz => quiz != null && (quiz!.passThreshold > 0 || quiz!.questions.isNotEmpty);
+
+  bool get hasPassedQuiz =>
+      hasQuiz &&
+      quiz!.passThreshold > 0 &&
+      quizScore >= quiz!.passThreshold;
+
+  bool get isCompleted => progressStatus == ProgressStatus.completed;
 }
 
 class Lesson {
@@ -388,6 +457,8 @@ class Lesson {
   final List<String> allowedGroupIds;
   final int estimatedMinutes;
   final List<StepNode> steps;
+  final int completedStepsCount;
+  final int totalStepsCount;
 
   const Lesson({
     required this.id,
@@ -399,33 +470,58 @@ class Lesson {
     required this.allowedGroupIds,
     required this.estimatedMinutes,
     required this.steps,
+    this.completedStepsCount = 0,
+    this.totalStepsCount = 0,
   });
 
-  factory Lesson.fromJson(Map<String, dynamic> json) {
-    final accessName = json['accessLevel'] as String? ?? AccessLevel.free.name;
-    final accessLevel = AccessLevel.values.firstWhere(
-      (item) => item.name == accessName,
-      orElse: () => AccessLevel.free,
+  Lesson copyWith({
+    String? id,
+    String? topicId,
+    String? title,
+    String? description,
+    int? order,
+    AccessLevel? accessLevel,
+    List<String>? allowedGroupIds,
+    int? estimatedMinutes,
+    List<StepNode>? steps,
+    int? completedStepsCount,
+    int? totalStepsCount,
+  }) {
+    return Lesson(
+      id: id ?? this.id,
+      topicId: topicId ?? this.topicId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      order: order ?? this.order,
+      accessLevel: accessLevel ?? this.accessLevel,
+      allowedGroupIds: allowedGroupIds ?? this.allowedGroupIds,
+      estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
+      steps: steps ?? this.steps,
+      completedStepsCount: completedStepsCount ?? this.completedStepsCount,
+      totalStepsCount: totalStepsCount ?? this.totalStepsCount,
     );
+  }
 
-    final steps = (json['steps'] as List<dynamic>? ?? <dynamic>[])
+  factory Lesson.fromJson(Map<String, dynamic> json) {
+    final steps = (json['steps'] as List<dynamic>? ?? const <dynamic>[])
         .map((item) => StepNode.fromJson(item as Map<String, dynamic>))
         .toList();
 
-    final groupIds = (json['allowedGroupIds'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => item.toString())
-        .toList();
-
     return Lesson(
-      id: json['id'] as String? ?? '',
-      topicId: json['topicId'] as String? ?? '',
-      title: json['title'] as String? ?? '',
-      description: json['description'] as String? ?? '',
-      order: json['order'] as int? ?? 1,
-      accessLevel: accessLevel,
-      allowedGroupIds: groupIds,
-      estimatedMinutes: json['estimatedMinutes'] as int? ?? 30,
+      id: _stringValue(json['id']),
+      topicId: _stringValue(json['topicId']),
+      title: _stringValue(json['title']),
+      description: _stringValue(json['description'] ?? json['summary']),
+      order: _intValue(json['order'] ?? json['orderIndex'], fallback: 1),
+      accessLevel: _parseAccessLevel(json['accessLevel']),
+      allowedGroupIds: _stringList(json['allowedGroupIds']),
+      estimatedMinutes: _intValue(json['estimatedMinutes'], fallback: 30),
       steps: steps,
+      completedStepsCount: _intValue(json['completedStepsCount']),
+      totalStepsCount: _intValue(
+        json['totalStepsCount'],
+        fallback: steps.length,
+      ),
     );
   }
 
@@ -440,6 +536,8 @@ class Lesson {
       'allowedGroupIds': allowedGroupIds,
       'estimatedMinutes': estimatedMinutes,
       'steps': steps.map((item) => item.toJson()).toList(),
+      'completedStepsCount': completedStepsCount,
+      'totalStepsCount': totalStepsCount,
     };
   }
 }
@@ -453,6 +551,10 @@ class Topic {
   final String levelLabel;
   final int estimatedHours;
   final List<Lesson> lessons;
+  final int progressPercent;
+  final int completedStepsCount;
+  final int totalStepsCount;
+  final List<Category> tagDetails;
 
   const Topic({
     required this.id,
@@ -463,25 +565,74 @@ class Topic {
     required this.levelLabel,
     required this.estimatedHours,
     required this.lessons,
+    this.progressPercent = 0,
+    this.completedStepsCount = 0,
+    this.totalStepsCount = 0,
+    this.tagDetails = const [],
   });
 
+  Topic copyWith({
+    String? id,
+    List<String>? tagIds,
+    String? title,
+    String? description,
+    String? emoji,
+    String? levelLabel,
+    int? estimatedHours,
+    List<Lesson>? lessons,
+    int? progressPercent,
+    int? completedStepsCount,
+    int? totalStepsCount,
+    List<Category>? tagDetails,
+  }) {
+    return Topic(
+      id: id ?? this.id,
+      tagIds: tagIds ?? this.tagIds,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      emoji: emoji ?? this.emoji,
+      levelLabel: levelLabel ?? this.levelLabel,
+      estimatedHours: estimatedHours ?? this.estimatedHours,
+      lessons: lessons ?? this.lessons,
+      progressPercent: progressPercent ?? this.progressPercent,
+      completedStepsCount: completedStepsCount ?? this.completedStepsCount,
+      totalStepsCount: totalStepsCount ?? this.totalStepsCount,
+      tagDetails: tagDetails ?? this.tagDetails,
+    );
+  }
+
   factory Topic.fromJson(Map<String, dynamic> json) {
-    final lessons = (json['lessons'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => Lesson.fromJson(item as Map<String, dynamic>))
-        .toList();
-    final tagIds = (json['tagIds'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => item.toString())
+    final tags = (json['tags'] as List<dynamic>? ?? const <dynamic>[])
+        .map(
+          (item) => Category.fromJson({
+            'id': item['id'],
+            'title': item['title'],
+            'description': item['description'],
+            'icon': 'tag',
+          }),
+        )
         .toList();
 
+    final tagIds = _stringList(json['tagIds']);
+    final normalizedTagIds = tagIds.isNotEmpty
+        ? tagIds
+        : tags.map((item) => item.id).toList();
+
     return Topic(
-      id: json['id'] as String? ?? '',
-      tagIds: tagIds,
-      title: json['title'] as String? ?? '',
-      description: json['description'] as String? ?? '',
-      emoji: json['emoji'] as String? ?? 'sparkles',
-      levelLabel: json['levelLabel'] as String? ?? 'Beginner',
-      estimatedHours: json['estimatedHours'] as int? ?? 6,
-      lessons: lessons,
+      id: _stringValue(json['id']),
+      tagIds: normalizedTagIds,
+      title: _stringValue(json['title']),
+      description: _stringValue(json['description']),
+      emoji: _stringValue(json['emoji'], fallback: 'sparkles'),
+      levelLabel: _stringValue(json['levelLabel'], fallback: 'Beginner'),
+      estimatedHours: _intValue(json['estimatedHours'], fallback: 0),
+      lessons: (json['lessons'] as List<dynamic>? ?? const <dynamic>[])
+          .map((item) => Lesson.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      progressPercent: _intValue(json['progressPercent']),
+      completedStepsCount: _intValue(json['completedStepsCount']),
+      totalStepsCount: _intValue(json['totalStepsCount']),
+      tagDetails: tags,
     );
   }
 
@@ -495,6 +646,10 @@ class Topic {
       'levelLabel': levelLabel,
       'estimatedHours': estimatedHours,
       'lessons': lessons.map((item) => item.toJson()).toList(),
+      'progressPercent': progressPercent,
+      'completedStepsCount': completedStepsCount,
+      'totalStepsCount': totalStepsCount,
+      'tags': tagDetails.map((item) => item.toJson()).toList(),
     };
   }
 }
@@ -512,9 +667,9 @@ class LearningGroup {
 
   factory LearningGroup.fromJson(Map<String, dynamic> json) {
     return LearningGroup(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? '',
-      description: json['description'] as String? ?? '',
+      id: _stringValue(json['id']),
+      title: _stringValue(json['title']),
+      description: _stringValue(json['description']),
     );
   }
 
@@ -542,6 +697,8 @@ class LearningUser {
   final List<String> unlockedRewardedStepIds;
   final List<String> passedQuizStepIds;
   final Map<String, List<String>> checklistState;
+  final int completedStepsCount;
+  final List<LearningGroup> groups;
 
   const LearningUser({
     required this.id,
@@ -558,6 +715,8 @@ class LearningUser {
     required this.unlockedRewardedStepIds,
     required this.passedQuizStepIds,
     required this.checklistState,
+    this.completedStepsCount = 0,
+    this.groups = const [],
   });
 
   LearningUser copyWith({
@@ -575,6 +734,8 @@ class LearningUser {
     List<String>? unlockedRewardedStepIds,
     List<String>? passedQuizStepIds,
     Map<String, List<String>>? checklistState,
+    int? completedStepsCount,
+    List<LearningGroup>? groups,
   }) {
     return LearningUser(
       id: id ?? this.id,
@@ -592,59 +753,47 @@ class LearningUser {
           unlockedRewardedStepIds ?? this.unlockedRewardedStepIds,
       passedQuizStepIds: passedQuizStepIds ?? this.passedQuizStepIds,
       checklistState: checklistState ?? this.checklistState,
+      completedStepsCount: completedStepsCount ?? this.completedStepsCount,
+      groups: groups ?? this.groups,
     );
   }
 
   factory LearningUser.fromJson(Map<String, dynamic> json) {
-    final planName = json['plan'] as String? ?? LearningPlan.free.name;
-    final plan = LearningPlan.values.firstWhere(
-      (item) => item.name == planName,
-      orElse: () => LearningPlan.free,
+    final groups = (json['groups'] as List<dynamic>? ?? const <dynamic>[])
+        .map((item) => LearningGroup.fromJson(item as Map<String, dynamic>))
+        .toList();
+    final groupIds = _stringList(json['groupIds']);
+    final normalizedGroupIds = groupIds.isNotEmpty
+        ? groupIds
+        : groups.map((item) => item.id).toList();
+
+    final fullName = _stringValue(
+      json['fullName'] ?? json['name'] ?? json['userName'],
+      fallback: 'Learner',
     );
-
-    final groupIds = (json['groupIds'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => item.toString())
-        .toList();
-
-    final completed = (json['completedStepIds'] as List<dynamic>? ?? <dynamic>[])
-        .map((item) => item.toString())
-        .toList();
-
-    final unlocked =
-        (json['unlockedRewardedStepIds'] as List<dynamic>? ?? <dynamic>[])
-            .map((item) => item.toString())
-            .toList();
-
-    final quizPassed = (json['passedQuizStepIds'] as List<dynamic>? ??
-            <dynamic>[])
-        .map((item) => item.toString())
-        .toList();
-
-    final checklistJson =
-        json['checklistState'] as Map<String, dynamic>? ?? <String, dynamic>{};
-    final checklistState = <String, List<String>>{};
-
-    for (final entry in checklistJson.entries) {
-      checklistState[entry.key] = (entry.value as List<dynamic>? ?? <dynamic>[])
-          .map((item) => item.toString())
-          .toList();
-    }
+    final completedCount = _intValue(json['completedStepsCount']);
+    final completedSteps = _stringList(json['completedStepIds']);
 
     return LearningUser(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      password: json['password'] as String? ?? '',
-      avatar: json['avatar'] as String? ?? 'A',
-      plan: plan,
-      groupIds: groupIds,
-      streakDays: json['streakDays'] as int? ?? 0,
-      gems: json['gems'] as int? ?? 0,
-      adsWatched: json['adsWatched'] as int? ?? 0,
-      completedStepIds: completed,
-      unlockedRewardedStepIds: unlocked,
-      passedQuizStepIds: quizPassed,
-      checklistState: checklistState,
+      id: _stringValue(json['id']),
+      name: fullName,
+      email: _stringValue(json['email']),
+      password: _stringValue(json['password']),
+      avatar: _stringValue(
+        json['avatar'],
+        fallback: fullName.isEmpty ? 'L' : fullName.trim()[0].toUpperCase(),
+      ),
+      plan: _parseLearningPlan(json['plan']),
+      groupIds: normalizedGroupIds,
+      streakDays: _intValue(json['streakDays']),
+      gems: _intValue(json['gems'], fallback: completedCount * 10),
+      adsWatched: _intValue(json['adsWatched']),
+      completedStepIds: completedSteps,
+      unlockedRewardedStepIds: _stringList(json['unlockedRewardedStepIds']),
+      passedQuizStepIds: _stringList(json['passedQuizStepIds']),
+      checklistState: _checklistState(json['checklistState']),
+      completedStepsCount: completedCount,
+      groups: groups,
     );
   }
 
@@ -664,6 +813,8 @@ class LearningUser {
       'unlockedRewardedStepIds': unlockedRewardedStepIds,
       'passedQuizStepIds': passedQuizStepIds,
       'checklistState': checklistState,
+      'completedStepsCount': completedStepsCount,
+      'groups': groups.map((item) => item.toJson()).toList(),
     };
   }
 }
@@ -686,4 +837,118 @@ class StepAccessInfo {
     required this.message,
     required this.state,
   });
+}
+
+AccessLevel _parseAccessLevel(dynamic value) {
+  switch (_stringValue(value).toUpperCase()) {
+    case 'REWARDED':
+      return AccessLevel.rewarded;
+    case 'PREMIUM':
+      return AccessLevel.premium;
+    case 'GROUP':
+      return AccessLevel.group;
+    default:
+      return AccessLevel.free;
+  }
+}
+
+LearningPlan _parseLearningPlan(dynamic value) {
+  switch (_stringValue(value).toUpperCase()) {
+    case 'PREMIUM':
+      return LearningPlan.premium;
+    case 'GROUP':
+    case 'GROUPPRO':
+    case 'GROUP_PRO':
+      return LearningPlan.groupPro;
+    default:
+      return LearningPlan.free;
+  }
+}
+
+ProgressStatus _parseProgressStatus(dynamic value) {
+  switch (_stringValue(value).toUpperCase()) {
+    case 'IN_PROGRESS':
+      return ProgressStatus.inProgress;
+    case 'COMPLETED':
+      return ProgressStatus.completed;
+    case 'LOCKED':
+      return ProgressStatus.locked;
+    default:
+      return ProgressStatus.notStarted;
+  }
+}
+
+StepContentBlockType _parseBlockType(dynamic value) {
+  switch (_stringValue(value).toUpperCase()) {
+    case 'HEADING':
+      return StepContentBlockType.heading;
+    case 'PARAGRAPH':
+      return StepContentBlockType.paragraph;
+    case 'CALLOUT':
+      return StepContentBlockType.callout;
+    case 'BULLETS':
+      return StepContentBlockType.bullets;
+    case 'QUOTE':
+      return StepContentBlockType.quote;
+    case 'IMAGE':
+      return StepContentBlockType.image;
+    case 'AUDIO':
+      return StepContentBlockType.audio;
+    case 'CODE':
+      return StepContentBlockType.code;
+    case 'DIVIDER':
+      return StepContentBlockType.divider;
+    default:
+      return StepContentBlockType.paragraph;
+  }
+}
+
+List<ChecklistItem> _parseChecklist(dynamic raw) {
+  final list = raw as List<dynamic>? ?? const <dynamic>[];
+  return list.asMap().entries.map((entry) {
+    final item = entry.value;
+    if (item is Map<String, dynamic>) {
+      return ChecklistItem.fromJson(item);
+    }
+
+    return ChecklistItem(
+      id: 'check-${entry.key}',
+      text: item.toString(),
+    );
+  }).toList();
+}
+
+Map<String, List<String>> _checklistState(dynamic raw) {
+  final json = raw as Map<String, dynamic>? ?? const <String, dynamic>{};
+  final state = <String, List<String>>{};
+
+  for (final entry in json.entries) {
+    state[entry.key] = _stringList(entry.value);
+  }
+
+  return state;
+}
+
+List<String> _stringList(dynamic raw) {
+  final list = raw as List<dynamic>? ?? const <dynamic>[];
+  return list.map((item) => _stringValue(item)).where((item) => item.isNotEmpty).toList();
+}
+
+String _stringValue(dynamic value, {String fallback = ''}) {
+  if (value == null) {
+    return fallback;
+  }
+
+  final normalized = value.toString().trim();
+  return normalized.isEmpty ? fallback : normalized;
+}
+
+int _intValue(dynamic value, {int fallback = 0}) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
 }

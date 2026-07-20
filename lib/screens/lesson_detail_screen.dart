@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/roadmap.dart';
 import '../providers/roadmap_provider.dart';
+import '../widgets/popover_help_button.dart';
 import '../widgets/rich_content.dart';
 import 'step_detail_screen.dart';
 
@@ -42,11 +43,50 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         ) ??
         false;
 
-    if (!mounted || !shouldPromptQuiz || step.quiz == null || provider.hasPassedQuiz(step.id)) {
+    if (!mounted) {
       return;
     }
 
-    await _showExitQuiz(provider: provider, step: step);
+    setState(() {});
+
+    if (!shouldPromptQuiz) {
+      return;
+    }
+
+    final refreshedStep = (await provider.loadStepDetail(step.id)) ??
+        provider.stepById(widget.topicId, lesson.id, step.id) ??
+        step;
+    if (!mounted) {
+      return;
+    }
+
+    if (!provider.isChecklistComplete(refreshedStep)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng hoàn thành Checklist trước khi làm Quiz.'),
+        ),
+      );
+      return;
+    }
+
+    if (!refreshedStep.hasQuiz ||
+        refreshedStep.quiz == null ||
+        refreshedStep.quiz!.questions.isEmpty) {
+      await provider.markStepCompleted(refreshedStep);
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
+    if (provider.hasPassedQuiz(refreshedStep.id)) {
+      return;
+    }
+
+    await _showExitQuiz(provider: provider, step: refreshedStep);
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _showExitQuiz({
@@ -63,13 +103,14 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
       builder: (sheetContext) {
         var isSubmitting = false;
         var quizPassed = false;
-        var rewardUnlocked = provider.hasUnlockedRewardedStep(step.id);
+        String? errorMessage;
 
         return StatefulBuilder(
           builder: (context, setModalState) {
             Future<void> handleSubmit() async {
               setModalState(() {
                 isSubmitting = true;
+                errorMessage = null;
               });
               final passed = await provider.submitQuiz(step: step, answers: answers);
               if (!context.mounted) {
@@ -82,42 +123,32 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               });
 
               if (!passed) {
-                rootMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('You did not meet the required score. Please try again.'),
-                  ),
-                );
+                setModalState(() {
+                  errorMessage =
+                      'Rất tiếc! Đáp án bạn chọn chưa chính xác. Vui lòng kiểm tra và chọn lại đáp án đúng.';
+                });
                 return;
               }
 
-              if (step.accessLevel != AccessLevel.rewarded || provider.isPremiumUser) {
-                if (provider.isChecklistComplete(step) && !provider.isStepCompleted(step.id)) {
-                  await provider.markStepCompleted(step);
-                }
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                }
-                rootMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Quiz completed for this step.'),
-                  ),
-                );
+              if (context.mounted) {
+                Navigator.of(context).pop();
               }
-            }
-
-            Future<void> handleRewardUnlock() async {
-              await provider.unlockRewardedStep(step.id);
-              rewardUnlocked = true;
-              if (provider.isChecklistComplete(step) && !provider.isStepCompleted(step.id)) {
-                await provider.markStepCompleted(step);
-              }
-              if (!context.mounted) {
-                return;
-              }
-              Navigator.of(context).pop();
               rootMessenger.showSnackBar(
                 const SnackBar(
-                  content: Text('This step has been fully unlocked.'),
+                  backgroundColor: Color(0xFF166534),
+                  behavior: SnackBarBehavior.floating,
+                  content: Row(
+                    children: [
+                      Icon(Icons.stars_rounded, color: Colors.white, size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Chúc mừng! Bạn đã đạt Quiz và hoàn thành bước học!',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }
@@ -163,15 +194,45 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                             ),
                       ),
                       const SizedBox(height: 18),
+                      if (errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.cancel_rounded,
+                                  color: Color(0xFFDC2626), size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  errorMessage!,
+                                  style: const TextStyle(
+                                    color: Color(0xFF991B1B),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       ...step.quiz!.questions.asMap().entries.map(
                         (entry) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: _QuizQuestionCard(
                             question: entry.value,
-                            selectedIndex: answers[entry.value.id],
+                            selectedIndex: answers[entry.value.id] ?? answers['q-${entry.key}'],
                             onSelect: (value) {
                               setModalState(() {
                                 answers[entry.value.id] = value;
+                                answers['q-${entry.key}'] = value;
+                                errorMessage = null;
                               });
                             },
                             index: entry.key + 1,
@@ -182,29 +243,13 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                       FilledButton(
                         onPressed: isSubmitting ? null : handleSubmit,
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF1D4ED8),
+                          backgroundColor: const Color(0xFF124DA3),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                         child: Text(isSubmitting ? 'Checking...' : 'Submit quiz'),
                       ),
-                      if (quizPassed &&
-                          step.accessLevel == AccessLevel.rewarded &&
-                          !provider.isPremiumUser &&
-                          !rewardUnlocked) ...[
-                        const SizedBox(height: 12),
-                        OutlinedButton(
-                          onPressed: handleRewardUnlock,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFF59E0B)),
-                            foregroundColor: const Color(0xFF92400E),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: const Text('Watch a rewarded ad to finish this step'),
-                        ),
-                      ],
-                      if (quizPassed &&
-                          (step.accessLevel != AccessLevel.rewarded || provider.isPremiumUser)) ...[
+                      if (quizPassed) ...[
                         const SizedBox(height: 12),
                         const Text(
                           'Quiz passed. You can continue to the next step.',
@@ -258,38 +303,54 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
           ),
           if (!lessonAccess)
             Container(
-              margin: const EdgeInsets.only(top: 14, bottom: 18),
-              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(top: 14, bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDE68A)),
               ),
-              child: const Text(
-                'This blog is part of a restricted access flow. Use the right plan or group to view the full content.',
+              child: const Row(
+                children: [
+                  Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFFD97706)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Bài học này yêu cầu quyền truy cập',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                  PopoverHelpButton(
+                    title: 'Giới hạn Truy cập',
+                    content:
+                        'Bài học này nằm trong luồng giới hạn nội dung.\n\nVui lòng nâng cấp tài khoản Premium hoặc gia nhập đúng Nhóm học (Group) để mở khóa đầy đủ.',
+                    iconColor: Color(0xFFD97706),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Text(
+                'Step list',
                 style: TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                  color: Color(0xFF92400E),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
                 ),
               ),
-            ),
-          const SizedBox(height: 6),
-          const Text(
-            'Step list',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Follow the sequence to unlock content, read each step on its own screen, and return here for quizzes when needed.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: Color(0xFF64748B),
-            ),
+              const SizedBox(width: 8),
+              const PopoverHelpButton(
+                title: 'Quy trình thực hiện Bài học',
+                content:
+                    'Học theo thứ tự từng Step để mở khóa nội dung tiếp theo.\n\nSau khi đọc lý thuyết & hoàn thành Checklist ở từng Step, hãy quay lại đây để làm Quiz trắc nghiệm mở khóa bước tiếp theo!',
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           ...lesson.steps.asMap().entries.map(
@@ -347,7 +408,7 @@ class _LessonHeader extends StatelessWidget {
               fontSize: 11,
               letterSpacing: 0.8,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF1D4ED8),
+              color: Color(0xFF124DA3),
             ),
           ),
           const SizedBox(height: 8),
@@ -391,7 +452,7 @@ class _LessonHeader extends StatelessWidget {
                     value: progress,
                     minHeight: 6,
                     backgroundColor: const Color(0xFFE2E8F0),
-                    color: const Color(0xFF1D4ED8),
+                    color: const Color(0xFF4EB748),
                   ),
                 ),
               ),
@@ -449,16 +510,16 @@ class _StepTimelineTile extends StatelessWidget {
     final access = provider.stepAccessInfo(lesson: lesson, step: step);
     final color = switch (access.state) {
       StepVisualState.locked => const Color(0xFF94A3B8),
-      StepVisualState.ready => const Color(0xFF2563EB),
-      StepVisualState.inProgress => const Color(0xFFF59E0B),
-      StepVisualState.completed => const Color(0xFF16A34A),
+      StepVisualState.ready => const Color(0xFF124DA3),
+      StepVisualState.inProgress => const Color(0xFFF37022),
+      StepVisualState.completed => const Color(0xFF4EB748),
     };
 
     final structureSignals = <String>[
       '${step.displayContentBlocks.length} blocks',
       if (step.hasImageBlock) 'image',
       if (step.hasAudioBlock) 'audio',
-      if (step.quiz != null) 'quiz',
+      if (step.hasQuiz) 'quiz',
     ];
 
     return Row(
@@ -467,27 +528,46 @@ class _StepTimelineTile extends StatelessWidget {
         Column(
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
+                color: access.state == StepVisualState.completed
+                    ? const Color(0xFF4EB748)
+                    : color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: access.state == StepVisualState.completed
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF4EB748).withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
               ),
               alignment: Alignment.center,
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: color,
-                ),
-              ),
+              child: access.state == StepVisualState.completed
+                  ? const Icon(
+                      Icons.check_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    )
+                  : Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
             ),
             if (!isLast)
               Container(
                 width: 2,
                 height: 110,
                 margin: const EdgeInsets.symmetric(vertical: 6),
-                color: const Color(0xFFE2E8F0),
+                color: access.state == StepVisualState.completed
+                    ? const Color(0xFF4EB748).withValues(alpha: 0.4)
+                    : const Color(0xFFE2E8F0),
               ),
           ],
         ),
@@ -496,36 +576,83 @@ class _StepTimelineTile extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
             onTap: access.canOpen ? onTap : null,
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: access.state == StepVisualState.completed
+                    ? const Color(0xFFF0FDF4)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(
+                  color: access.state == StepVisualState.completed
+                      ? const Color(0xFF4EB748).withValues(alpha: 0.45)
+                      : const Color(0xFFE2E8F0),
+                  width: access.state == StepVisualState.completed ? 1.5 : 1.0,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text.rich(
-                    TextSpan(
-                      style: const TextStyle(
-                        fontSize: 15,
-                        height: 1.35,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            style: const TextStyle(
+                              fontSize: 15,
+                              height: 1.35,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                            ),
+                            children: [
+                              TextSpan(text: step.title),
+                              TextSpan(
+                                text: '  ·  ${step.estimatedMinutes} min',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      children: [
-                        TextSpan(text: step.title),
-                        TextSpan(
-                          text: '  ·  ${step.estimatedMinutes} min',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF64748B),
+                      if (access.state == StepVisualState.completed) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4EB748).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFF4EB748).withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 12,
+                                color: Color(0xFF166534),
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Đã hoàn thành',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF166534),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   RichContentText(
