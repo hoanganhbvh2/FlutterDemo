@@ -1,93 +1,74 @@
-# Học Mẹo - Flutter Mobile Application
+# Học Mẹo — Flutter Mobile Application (`flutter_demo`)
 
-Ứng dụng di động học tập theo lộ trình **Học Mẹo**, được phát triển bằng **Flutter 3.x (Dart)** kết hợp với kiến trúc quản lý trạng thái **Provider**.
-
----
-
-## Tính Năng Chính (Key Features)
-
-1. **Khám Phá Lộ Trình (Roadmap & Topics Exploration)**:
-   - Danh sách các chủ đề (Topics) phân theo cấp độ (Beginner, Intermediate, Advanced) và danh mục (Categories/Tags).
-   - Thống kê thời gian ước tính, tiến độ hoàn thành % và các mốc học tập.
-
-2. **Học Theo Bài Viết & Bài Học (Lessons & Blogs)**:
-   - Cấu trúc bài học rõ ràng kèm theo các khối nội dung đa dạng (Lý thuyết, Mã minh họa, Ghi chú).
-
-3. **Thực Hành Tương Tác & Bài Tập Trắc Nghiệm (Steps & Interactive Quizzes)**:
-   - Làm bài tập trắc nghiệm trực tiếp dưới mỗi Step.
-   - Phản hồi kết quả thông minh, thông báo chính xác đáp án và lý do sai khi làm bài.
-
-4. **Theo Dõi Tiến Độ & Chuỗi Ngày Học (Streak & XP Rewards)**:
-   - Tính toán chuỗi ngày học liên tục (Streak Days).
-   - Cộng điểm thưởng XP và lưu trạng thái hoàn thành đồng bộ với Spring Boot Backend.
-
-5. **Đồng Bộ Dữ Liệu Chế Độ Kép (Dual Data Mode - REST & Offline Fallback)**:
-   - Tự động kết nối và đồng bộ trực tiếp với Spring Boot Backend REST API (`http://localhost:5001/api/v1`).
-   - Tự động chuyển sang chế độ dữ liệu nạp sẵn khi mất kết nối mạng, đảm bảo trải nghiệm liền mạch cho học viên.
+Ứng dụng di động học tập theo lộ trình **Học Mẹo**, được phát triển bằng **Flutter 3.x (Dart)** kết hợp với kiến trúc quản lý trạng thái **Provider** và thiết kế nhận diện thương hiệu **Emerald Green `#4EB748`**.
 
 ---
 
-## Kiến Trúc Mã Nguồn (Code Architecture)
+## 1. Tính Năng Nổi Bật (Key Features)
+
+1. **Khám Phá Lộ Trình Học Tập (Roadmap & Topics Exploration)**:
+   - Danh sách các chủ đề (Topics) phân loại theo cấp độ (Beginner, Intermediate, Advanced) và danh mục (Categories/Tags).
+   - Hiển thị phần trăm tiến độ hoàn thành %, bài học tiếp theo và chứng nhận.
+
+2. **Học Theo Bài Viết & Các Bước Chi Tiết (Lessons & Steps)**:
+   - Trình duyệt nội dung đa dạng với các khối lý thuyết, mã minh họa, hình ảnh, video và ghi chú.
+
+3. **Bài Tập Trắc Nghiệm Tương Tác (Interactive Quizzes)**:
+   - Làm bài tập trắc nghiệm chọn đáp án dưới mỗi bước học, tự động tính điểm và lưu tiến độ.
+
+4. **Yêu Cầu Nâng Cấp Premium & Kiểm Tra Trạng Thái (Plan Request & Ticket Tracking)**:
+   - **Form Đăng Ký**: Học viên gửi thông tin (Họ tên, SĐT, Lý do) nâng cấp tài khoản lên gói Premium trực tiếp tại màn hình Profile.
+   - **Lịch Sử & Trạng Thái Ticket**: Thẻ Accordion hiển thị danh sách các ticket học viên đã gửi cùng trạng thái thời gian thực (`DANG CHO DUYET`, `DA DUYET`, `TU CHOI`) và phản hồi từ Admin.
+
+5. **Bộ Nhận Diện Thương Hiệu Học Mẹo**:
+   - Màu chủ đạo Emerald Green `Color(0xFF4EB748)`.
+   - Trang Login & Register hiển thị Logo Học Mẹo 100x100 căn giữa kèm câu Quote truyền cảm hứng tiếng Anh.
+
+---
+
+## 2. Cấu Trúc Mã Nguồn (Code Structure)
 
 ```
-lib/
-├── models/                     # Data Entities & JSON Serialization
-│   ├── category.dart
-│   ├── tag.dart
-│   ├── topic.dart
-│   ├── lesson.dart
-│   ├── step_item.dart
-│   ├── quiz_question.dart
-│   └── user.dart
-│
-├── providers/                  # Application State & Business Logic
-│   ├── auth_provider.dart      # Đăng nhập, lưu Token & phiên làm việc
-│   └── roadmap_provider.dart   # Fetch Topic, tính toán tiến độ, submit Quiz & Streak
-│
-├── screens/                    # Giao diện chính các màn hình
-│   ├── home_screen.dart        # Màn hình trang chủ & Tiến độ cá nhân
-│   ├── explore_screen.dart     # Khám phá danh sách Lộ trình
-│   ├── topic_detail_screen.dart# Chi tiết Topic & Danh sách Bài học (Blog)
-│   ├── lesson_detail_screen.dart# Chi tiết Bài học, Step & Trắc nghiệm Quiz
-│   ├── profile_screen.dart     # Thông tin học viên, Chuỗi ngày & Cài đặt
-│   └── login_screen.dart       # Đăng nhập hệ thống
-│
-├── services/                   # Kết nối mạng & REST API Client
-│   └── api_service.dart
-│
-└── utils/                      # Constants, App Colors, Styles & Helpers
-    └── app_theme.dart
+flutter_demo/
+├── lib/
+│   ├── models/                 # Data Classes (User, Topic, StepNode, PlanRequest)
+│   ├── providers/              # Provider State Management (RoadmapProvider)
+│   ├── screens/                # Giao diện ứng dụng
+│   │   ├── home_screen.dart    # Trang chủ & Tiến độ cá nhân
+│   │   ├── explore_screen.dart # Khám phá lộ trình
+│   │   ├── profile_screen.dart # Thông tin cá nhân & Accordion Plan Request
+│   │   ├── login_screen.dart   # Đăng nhập (Logo 100x100 + Quote)
+│   │   └── register_screen.dart# Đăng ký (Logo 100x100 + Quote)
+│   ├── services/               # ApiClient & HTTP REST Requests
+│   └── widgets/                # Reusable UI Widgets (RichContent, Popover)
+└── pubspec.yaml
 ```
 
 ---
 
-## Hướng Dẫn Chạy Ứng Dụng (Getting Started)
+## 3. Hướng Dẫn Khởi Chạy (Getting Started)
 
-### 1. Yêu cầu hệ thống:
+### Yêu cầu môi trường:
+- Flutter SDK `>= 3.19.0`
+- Dart SDK `>= 3.3.0`
+- Android Studio / VS Code (Flutter Extension)
 
-- Flutter SDK `>= 3.11.5`
-- Dart SDK `>= 3.0.0`
-- Android Studio / VS Code (đã cài Flutter Extension)
-- Thiết bị ảo (Emulator) hoặc thiết bị thật (Android / iOS)
-
-### 2. Cài đặt phụ thuộc:
-
+### Cài đặt phụ thuộc:
 ```bash
+cd flutter_demo
 flutter pub get
 ```
 
-### 3. Khởi chạy ứng dụng:
-
+### Khởi chạy ứng dụng:
 ```bash
 flutter run
 ```
 
 ---
 
-## ⚙️ Cấu Hình Kết Nối API Backend
+## 4. Cấu Hình Kết Nối API Backend
 
-Mặc định ứng dụng kết nối tới Spring Boot Backend tại:
-
+Mặc định ứng dụng kết nối tới Node.js Express Backend tại:
 - **Android Emulator**: `http://10.0.2.2:5001/api/v1`
 - **iOS Simulator / Local**: `http://localhost:5001/api/v1`
-- **Production Server**: Thay đổi `baseUrl` trong `lib/services/api_service.dart`.
+- **Production Server**: Thay đổi `defaultBaseUrl` trong `lib/utils/api_config.dart`.
