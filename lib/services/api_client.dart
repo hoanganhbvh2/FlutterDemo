@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../utils/api_config.dart';
+
 class ApiClient {
   ApiClient({
     http.Client? httpClient,
@@ -11,7 +13,7 @@ class ApiClient {
   })  : _httpClient = httpClient ?? http.Client(),
         baseUrl = (baseUrl != null && baseUrl.isNotEmpty)
             ? baseUrl
-            : _defaultBaseUrl();
+            : ApiConfig.defaultBaseUrl();
 
   final http.Client _httpClient;
   final String baseUrl;
@@ -55,6 +57,19 @@ class ApiClient {
     );
   }
 
+  Future<dynamic> patch(
+    String path, {
+    Object? body,
+    bool requiresAuth = true,
+  }) {
+    return _send(
+      method: 'PATCH',
+      path: path,
+      body: body,
+      requiresAuth: requiresAuth,
+    );
+  }
+
   Future<dynamic> _send({
     required String method,
     required String path,
@@ -69,7 +84,8 @@ class ApiClient {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      if (requiresAuth && authToken != null) 'Authorization': 'Bearer $authToken',
+      if (authToken != null && authToken!.isNotEmpty)
+        'Authorization': 'Bearer $authToken',
     };
 
     late final http.Response response;
@@ -93,6 +109,15 @@ class ApiClient {
               )
               .timeout(const Duration(seconds: 20));
           break;
+        case 'PATCH':
+          response = await _httpClient
+              .patch(
+                uri,
+                headers: headers,
+                body: body == null ? null : jsonEncode(body),
+              )
+              .timeout(const Duration(seconds: 20));
+          break;
         default:
           response = await _httpClient
               .get(
@@ -104,9 +129,7 @@ class ApiClient {
     } on TimeoutException {
       throw const ApiException('The server took too long to respond.');
     } on http.ClientException {
-      throw ApiException(
-        'Cannot reach the backend at $baseUrl. Check the API URL and server status.',
-      );
+      throw ApiException(_connectionErrorMessage());
     }
 
     final payload = response.body.isEmpty ? null : jsonDecode(response.body);
@@ -147,13 +170,31 @@ class ApiClient {
       return configured;
     }
 
-    if (kIsWeb) {
-      return 'http://localhost:5001';
+    // The backend is deployed, so EVERY build mode (debug/profile/release)
+    // defaults to the real deployed API. Previously debug/profile builds
+    // pointed at localhost/10.0.2.2, which is unreachable on a real device or
+    // when no local server is running — that made the app fetch nothing.
+    //
+    // To develop against a local server instead, run Flutter with:
+    //   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5001   (Android emulator)
+    //   flutter run --dart-define=API_BASE_URL=http://localhost:5001  (iOS simulator / web)
+    return _productionBaseUrl;
+  }
+
+  static const String _productionBaseUrl = 'https://api.hocmeo.io.vn';
+
+  String _connectionErrorMessage() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      if (baseUrl.contains('10.0.2.2')) {
+        return 'The app is using $baseUrl. 10.0.2.2 only works on Android emulator. On iPhone, run Flutter with --dart-define=API_BASE_URL=http://<your-computer-LAN-IP>:5001.';
+      }
+
+      if (baseUrl.contains('localhost') || baseUrl.contains('127.0.0.1')) {
+        return 'Cannot reach the backend at $baseUrl. On a real iPhone, localhost points to the phone itself. Run Flutter with --dart-define=API_BASE_URL=http://<your-computer-LAN-IP>:5001.';
+      }
     }
 
-    return defaultTargetPlatform == TargetPlatform.android
-        ? 'http://10.0.2.2:5001'
-        : 'http://localhost:5001';
+    return 'Cannot reach the backend at $baseUrl. Check the API URL and server status.';
   }
 }
 

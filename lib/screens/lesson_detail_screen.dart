@@ -22,6 +22,16 @@ class LessonDetailScreen extends StatefulWidget {
 }
 
 class _LessonDetailScreenState extends State<LessonDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<RoadmapProvider>().fetchTopicDetail(widget.topicId);
+      }
+    });
+  }
+
   Future<void> _openStep({
     required RoadmapProvider provider,
     required Lesson lesson,
@@ -32,243 +42,22 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
       return;
     }
 
-    final shouldPromptQuiz = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (_) => StepDetailScreen(
-              topicId: widget.topicId,
-              lessonId: lesson.id,
-              stepId: step.id,
-            ),
-          ),
-        ) ??
-        false;
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {});
-
-    if (!shouldPromptQuiz) {
-      return;
-    }
-
-    final refreshedStep = (await provider.loadStepDetail(step.id)) ??
-        provider.stepById(widget.topicId, lesson.id, step.id) ??
-        step;
-    if (!mounted) {
-      return;
-    }
-
-    if (!provider.isChecklistComplete(refreshedStep)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng hoàn thành Checklist trước khi làm Quiz.'),
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StepDetailScreen(
+          topicId: widget.topicId,
+          lessonId: lesson.id,
+          stepId: step.id,
         ),
-      );
-      return;
-    }
-
-    if (!refreshedStep.hasQuiz ||
-        refreshedStep.quiz == null ||
-        refreshedStep.quiz!.questions.isEmpty) {
-      await provider.markStepCompleted(refreshedStep);
-      if (mounted) {
-        setState(() {});
-      }
-      return;
-    }
-
-    if (provider.hasPassedQuiz(refreshedStep.id)) {
-      return;
-    }
-
-    await _showExitQuiz(provider: provider, step: refreshedStep);
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  Future<void> _showExitQuiz({
-    required RoadmapProvider provider,
-    required StepNode step,
-  }) async {
-    final answers = <String, int>{};
-    final rootMessenger = ScaffoldMessenger.of(context);
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        var isSubmitting = false;
-        var quizPassed = false;
-        String? errorMessage;
-
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            Future<void> handleSubmit() async {
-              setModalState(() {
-                isSubmitting = true;
-                errorMessage = null;
-              });
-              final passed = await provider.submitQuiz(step: step, answers: answers);
-              if (!context.mounted) {
-                return;
-              }
-
-              setModalState(() {
-                isSubmitting = false;
-                quizPassed = passed;
-              });
-
-              if (!passed) {
-                setModalState(() {
-                  errorMessage =
-                      'Rất tiếc! Đáp án bạn chọn chưa chính xác. Vui lòng kiểm tra và chọn lại đáp án đúng.';
-                });
-                return;
-              }
-
-              if (context.mounted) {
-                Navigator.of(context).pop();
-              }
-              rootMessenger.showSnackBar(
-                const SnackBar(
-                  backgroundColor: Color(0xFF166534),
-                  behavior: SnackBarBehavior.floating,
-                  content: Row(
-                    children: [
-                      Icon(Icons.stars_rounded, color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Chúc mừng! Bạn đã đạt Quiz và hoàn thành bước học!',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            return DraggableScrollableSheet(
-              initialChildSize: 0.86,
-              minChildSize: 0.65,
-              maxChildSize: 0.96,
-              builder: (context, controller) {
-                return Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: ListView(
-                    controller: controller,
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 44,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCBD5E1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Knowledge check',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF0F172A),
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Complete this quiz right after reading to continue your learning flow.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              height: 1.55,
-                              color: const Color(0xFF475569),
-                            ),
-                      ),
-                      const SizedBox(height: 18),
-                      if (errorMessage != null) ...[
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFFECACA)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.cancel_rounded,
-                                  color: Color(0xFFDC2626), size: 22),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  errorMessage!,
-                                  style: const TextStyle(
-                                    color: Color(0xFF991B1B),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      ...step.quiz!.questions.asMap().entries.map(
-                        (entry) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _QuizQuestionCard(
-                            question: entry.value,
-                            selectedIndex: answers[entry.value.id] ?? answers['q-${entry.key}'],
-                            onSelect: (value) {
-                              setModalState(() {
-                                answers[entry.value.id] = value;
-                                answers['q-${entry.key}'] = value;
-                                errorMessage = null;
-                              });
-                            },
-                            index: entry.key + 1,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      FilledButton(
-                        onPressed: isSubmitting ? null : handleSubmit,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF124DA3),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(isSubmitting ? 'Checking...' : 'Submit quiz'),
-                      ),
-                      if (quizPassed) ...[
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Quiz passed. You can continue to the next step.',
-                          style: TextStyle(
-                            color: Color(0xFF166534),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
+      ),
     );
+
+    if (!mounted) return;
+    // Refresh UI to show updated step completion state
+    setState(() {});
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -353,24 +142,44 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          ...lesson.steps.asMap().entries.map(
-            (entry) => Padding(
-              padding: EdgeInsets.only(
-                bottom: entry.key == lesson.steps.length - 1 ? 0 : 12,
+          if (lesson.steps.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: _StepTimelineTile(
-                lesson: lesson,
-                step: entry.value,
-                index: entry.key,
-                isLast: entry.key == lesson.steps.length - 1,
-                onTap: () => _openStep(
-                  provider: provider,
+              child: const Center(
+                child: Text(
+                  'Bài học này hiện chưa có bước học (Step) nào.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            )
+          else
+            ...lesson.steps.asMap().entries.map(
+              (entry) => Padding(
+                padding: EdgeInsets.only(
+                  bottom: entry.key == lesson.steps.length - 1 ? 0 : 12,
+                ),
+                child: _StepTimelineTile(
                   lesson: lesson,
                   step: entry.value,
+                  index: entry.key,
+                  isLast: entry.key == lesson.steps.length - 1,
+                  onTap: () => _openStep(
+                    provider: provider,
+                    lesson: lesson,
+                    step: entry.value,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -693,95 +502,6 @@ class _StepTimelineTile extends StatelessWidget {
   }
 }
 
-class _QuizQuestionCard extends StatelessWidget {
-  const _QuizQuestionCard({
-    required this.question,
-    required this.selectedIndex,
-    required this.onSelect,
-    required this.index,
-  });
-
-  final QuizQuestion question;
-  final int? selectedIndex;
-  final ValueChanged<int> onSelect;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Question $index',
-            style: const TextStyle(
-              fontSize: 11,
-              letterSpacing: 0.8,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1D4ED8),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            question.prompt,
-            style: const TextStyle(
-              fontSize: 15,
-              height: 1.45,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...question.options.asMap().entries.map(
-            (entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => onSelect(entry.key),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: selectedIndex == entry.key
-                        ? const Color(0xFFE0F2FE)
-                        : const Color(0xFFF8FAFC),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        selectedIndex == entry.key
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                        color: selectedIndex == entry.key
-                            ? const Color(0xFF1D4ED8)
-                            : const Color(0xFF94A3B8),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          entry.value,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF334155),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _MetaChip extends StatelessWidget {
   const _MetaChip({required this.label});

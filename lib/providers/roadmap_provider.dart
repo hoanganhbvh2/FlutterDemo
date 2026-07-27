@@ -7,23 +7,26 @@ import '../models/roadmap.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/roadmap_service.dart';
+import '../services/secure_storage_service.dart';
 
 class RoadmapProvider extends ChangeNotifier {
-  static const _tokenKey = 'kahoa_auth_token_v1';
   static const _sessionKey = 'kahoa_current_user_v1';
 
   RoadmapProvider()
-      : _apiClient = ApiClient() {
+      : _apiClient = ApiClient(),
+        _secureStorage = SecureStorageService() {
     _authService = AuthService(_apiClient);
     _roadmapService = RoadmapService(_apiClient);
     _init();
   }
 
   final ApiClient _apiClient;
+  final SecureStorageService _secureStorage;
   late AuthService _authService;
   late RoadmapService _roadmapService;
 
   bool _isLoading = true;
+  String? _lastSyncError;
   String? _selectedCategoryId;
   List<Category> _categories = [];
   List<LearningGroup> _groups = [];
@@ -31,6 +34,7 @@ class RoadmapProvider extends ChangeNotifier {
   LearningUser? _currentUser;
 
   bool get isLoading => _isLoading;
+  String? get lastSyncError => _lastSyncError;
   String? get selectedCategoryId => _selectedCategoryId;
   List<Category> get categories => _categories;
   List<LearningGroup> get groups => _groups;
@@ -38,21 +42,36 @@ class RoadmapProvider extends ChangeNotifier {
   LearningUser? get currentUser => _currentUser;
 
   Future<void> _init() async {
+    final token = await _secureStorage.getToken();
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenKey);
     final rawUser = prefs.getString(_sessionKey);
 
-    if (token != null && rawUser != null) {
+    if (token != null && token.isNotEmpty) {
       _apiClient.authToken = token;
-      _currentUser = LearningUser.fromJson(
-        jsonDecode(rawUser) as Map<String, dynamic>,
-      );
 
+      // Try fetching current user profile using JWT token
       try {
-        await _bootstrapSession(refreshUser: true);
+        _currentUser = await _authService.getMe();
       } catch (_) {
-        await _clearSession();
+        // Fallback to cached profile if offline
+        if (rawUser != null) {
+          try {
+            _currentUser = LearningUser.fromJson(
+              jsonDecode(rawUser) as Map<String, dynamic>,
+            );
+          } catch (_) {
+            _currentUser = null;
+          }
+        }
       }
+    }
+
+    try {
+      await _bootstrapSession(refreshUser: false);
+    } on ApiException catch (error) {
+      _lastSyncError = error.message;
+    } catch (_) {
+      _lastSyncError = 'Unable to load roadmap data from the backend.';
     }
 
     _isLoading = false;
@@ -60,16 +79,20 @@ class RoadmapProvider extends ChangeNotifier {
   }
 
   Future<void> _bootstrapSession({bool refreshUser = false}) async {
+    _lastSyncError = null;
     final user = _currentUser;
-    if (user == null) {
-      _topics = [];
-      _categories = [];
-      _groups = [];
-      return;
-    }
-
-    if (refreshUser) {
-      _currentUser = await _authService.getUserById(user.id);
+    if (refreshUser && user != null && _apiClient.authToken != null) {
+      try {
+        _currentUser = await _authService.getMe();
+      } on ApiException catch (error) {
+        if (error.statusCode == 401) {
+          await _clearSession();
+          return;
+        }
+        _lastSyncError = error.message;
+      } catch (_) {
+        _lastSyncError ??= 'Unable to refresh your account from the backend.';
+      }
     }
 
     final topicSummaries = await _roadmapService.getTopics();
@@ -88,15 +111,40 @@ class RoadmapProvider extends ChangeNotifier {
   Future<void> refreshData() async {
     try {
       await _bootstrapSession(refreshUser: true);
-    } catch (_) {}
+    } on ApiException catch (error) {
+      _lastSyncError = error.message;
+    } catch (_) {
+      _lastSyncError = 'Unable to refresh roadmap data right now.';
+    }
     notifyListeners();
   }
 
-  Future<void> _persistSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (_apiClient.authToken != null) {
-      await prefs.setString(_tokenKey, _apiClient.authToken!);
+  Future<void> fetchTopicDetail(String topicId) async {
+    try {
+      final detail = await _roadmapService.getTopicDetail(topicId);
+      final index = _topics.indexWhere((t) => t.id == topicId);
+      if (index != -1) {
+        _topics[index] = detail;
+      } else {
+        _topics.add(detail);
+      }
+      _categories = _buildCategories(_topics);
+      _lastSyncError = null;
+      notifyListeners();
+    } on ApiException catch (error) {
+      _lastSyncError = error.message;
+      notifyListeners();
+    } catch (_) {
+      _lastSyncError = 'Unable to load this topic right now.';
+      notifyListeners();
     }
+  }
+
+  Future<void> _persistSession() async {
+    if (_apiClient.authToken != null && _apiClient.authToken!.isNotEmpty) {
+      await _secureStorage.saveToken(_apiClient.authToken!);
+    }
+    final prefs = await SharedPreferences.getInstance();
     if (_currentUser != null) {
       await prefs.setString(_sessionKey, jsonEncode(_currentUser!.toJson()));
     }
@@ -110,8 +158,8 @@ class RoadmapProvider extends ChangeNotifier {
     _groups = [];
     _selectedCategoryId = null;
 
+    await _secureStorage.deleteToken();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
     await prefs.remove(_sessionKey);
   }
 
@@ -151,6 +199,85 @@ class RoadmapProvider extends ChangeNotifier {
   StepNode? stepById(String topicId, String lessonId, String stepId) {
     final lesson = lessonById(topicId, lessonId);
     return lesson?.steps.where((item) => item.id == stepId).firstOrNull;
+  }
+
+  List<Map<String, dynamic>> _myPlanRequests = [];
+  List<Map<String, dynamic>> get myPlanRequests => _myPlanRequests;
+
+  Future<void> fetchMyPlanRequests() async {
+    try {
+      final token = _apiClient.authToken;
+      if (token == null || token.isEmpty) return;
+      final res = await _apiClient.get('/api/v1/plan-requests/my');
+      if (res is List) {
+        _myPlanRequests = List<Map<String, dynamic>>.from(res);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<String?> submitPlanRequest({
+    required String name,
+    required String phone,
+    required String content,
+  }) async {
+    try {
+      await _apiClient.post(
+        '/api/v1/plan-requests',
+        body: {
+          'name': name.trim(),
+          'phone': phone.trim(),
+          'content': content.trim(),
+        },
+      );
+      await fetchMyPlanRequests();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  List<Map<String, dynamic>> _adminPlanRequests = [];
+  List<Map<String, dynamic>> get adminPlanRequests => _adminPlanRequests;
+
+  Future<void> fetchAllPlanRequestsForAdmin({String status = 'ALL', String search = ''}) async {
+    try {
+      final token = _apiClient.authToken;
+      if (token == null || token.isEmpty) return;
+      final res = await _apiClient.get(
+        '/api/v1/admin/plan-requests?status=$status&search=$search',
+      );
+      if (res is Map<String, dynamic> && res.containsKey('items')) {
+        _adminPlanRequests = List<Map<String, dynamic>>.from(res['items'] as List);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<String?> updatePlanRequestStatus({
+    required dynamic id,
+    required String status,
+    String? adminNote,
+  }) async {
+    try {
+      await _apiClient.patch(
+        '/api/v1/admin/plan-requests/$id',
+        body: {
+          'status': status,
+          'adminNote': adminNote,
+        },
+      );
+      await fetchAllPlanRequestsForAdmin();
+      await fetchMyPlanRequests();
+      await refreshData();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
   }
 
   Future<StepNode?> loadStepDetail(String stepId) async {
@@ -297,35 +424,7 @@ class RoadmapProvider extends ChangeNotifier {
     final current = _findStep(step.id) ?? step;
     final checklistTouched = checklistProgressFor(current.id).isNotEmpty;
 
-    if (isStepCompleted(current.id)) {
-      return const StepAccessInfo(
-        canOpen: true,
-        needsQuiz: false,
-        needsRewardAd: false,
-        needsPremium: false,
-        needsGroup: false,
-        message: 'Completed. You can revisit this step anytime.',
-        state: StepVisualState.completed,
-      );
-    }
-
-    final prerequisiteId = current.prerequisiteStepIds.firstWhere(
-      (item) => !isStepCompleted(item),
-      orElse: () => '',
-    );
-    if (prerequisiteId.isNotEmpty) {
-      final prerequisiteTitle = _findStep(prerequisiteId)?.title ?? prerequisiteId;
-      return StepAccessInfo(
-        canOpen: false,
-        needsQuiz: false,
-        needsRewardAd: false,
-        needsPremium: false,
-        needsGroup: false,
-        message: 'Finish the previous step first: $prerequisiteTitle',
-        state: StepVisualState.locked,
-      );
-    }
-
+    // 1. Strict Access Level check (Lesson & Step level)
     if (!canAccessLesson(lesson)) {
       final needsPremium = lesson.accessLevel == AccessLevel.premium;
       return StepAccessInfo(
@@ -362,6 +461,37 @@ class RoadmapProvider extends ChangeNotifier {
         needsPremium: false,
         needsGroup: true,
         message: 'This step belongs to a private group program.',
+        state: StepVisualState.locked,
+      );
+    }
+
+    // 2. Completion Status
+    if (isStepCompleted(current.id)) {
+      return const StepAccessInfo(
+        canOpen: true,
+        needsQuiz: false,
+        needsRewardAd: false,
+        needsPremium: false,
+        needsGroup: false,
+        message: 'Completed. You can revisit this step anytime.',
+        state: StepVisualState.completed,
+      );
+    }
+
+    // 3. Sequential Prerequisite Check
+    final prerequisiteId = current.prerequisiteStepIds.firstWhere(
+      (item) => !isStepCompleted(item),
+      orElse: () => '',
+    );
+    if (prerequisiteId.isNotEmpty) {
+      final prerequisiteTitle = _findStep(prerequisiteId)?.title ?? prerequisiteId;
+      return StepAccessInfo(
+        canOpen: false,
+        needsQuiz: false,
+        needsRewardAd: false,
+        needsPremium: false,
+        needsGroup: false,
+        message: 'Finish the previous step first: $prerequisiteTitle',
         state: StepVisualState.locked,
       );
     }
@@ -417,52 +547,24 @@ class RoadmapProvider extends ChangeNotifier {
     }).toList();
     final wasCompleted = current.isCompleted;
 
-    int correctCount = 0;
-    for (int i = 0; i < quiz.questions.length; i++) {
-      if (selectedAnswers[i] == quiz.questions[i].correctIndex) {
-        correctCount++;
-      }
-    }
-    final effectiveThreshold = quiz.questions.isEmpty
-        ? 0
-        : (quiz.passThreshold > quiz.questions.length
-            ? quiz.questions.length
-            : quiz.passThreshold);
-    final isPass = quiz.questions.isEmpty || correctCount >= effectiveThreshold;
+    try {
+      final response = await _roadmapService.submitQuiz(
+        stepId: current.id,
+        selectedAnswers: selectedAnswers,
+      );
 
-    if (_currentUser != null) {
-      try {
-        final response = await _roadmapService.submitQuiz(
-          stepId: current.id,
-          selectedAnswers: selectedAnswers,
-        );
+      final passed = response['passed'] == true || response['hasPassedQuiz'] == true;
+      final serverStatus = _progressStatusFromValue(response['progressStatus']);
+      final finalStatus = passed ? ProgressStatus.completed : serverStatus;
 
-        final serverStatus = _progressStatusFromValue(response['progressStatus']);
-        final finalStatus = (isPass || serverStatus == ProgressStatus.completed)
-            ? ProgressStatus.completed
-            : serverStatus;
-
-        _applyProgressUpdate(
-          stepId: current.id,
-          progressStatus: finalStatus,
-          completedChecklist: _extractStringList(response['completedChecklist']),
-          quizScore: _extractInt(response['quizScore']),
-        );
-      } catch (_) {
-        _applyProgressUpdate(
-          stepId: current.id,
-          progressStatus: isPass ? ProgressStatus.completed : ProgressStatus.inProgress,
-          completedChecklist: current.completedChecklist,
-          quizScore: correctCount,
-        );
-      }
-    } else {
       _applyProgressUpdate(
         stepId: current.id,
-        progressStatus: isPass ? ProgressStatus.completed : ProgressStatus.inProgress,
-        completedChecklist: current.completedChecklist,
-        quizScore: correctCount,
+        progressStatus: finalStatus,
+        completedChecklist: _extractStringList(response['completedChecklist']),
+        quizScore: _extractInt(response['quizScore']),
       );
+    } catch (_) {
+      return false;
     }
 
     final refreshed = _findStep(current.id) ?? current;
@@ -470,7 +572,7 @@ class RoadmapProvider extends ChangeNotifier {
       await _applyCompletionForUser(refreshed);
     }
 
-    return refreshed.hasPassedQuiz || isPass;
+    return refreshed.hasPassedQuiz;
   }
 
   Future<void> toggleChecklist({
@@ -478,6 +580,9 @@ class RoadmapProvider extends ChangeNotifier {
     required String itemId,
   }) async {
     final current = _findStep(step.id) ?? step;
+    final previousStatus = current.progressStatus;
+    final previousChecklist = current.completedChecklist;
+    final previousQuizScore = current.quizScore;
 
     final completedIds = {...current.completedChecklist};
     if (completedIds.contains(itemId)) {
@@ -508,21 +613,27 @@ class RoadmapProvider extends ChangeNotifier {
     );
 
     final wasCompleted = current.isCompleted;
-    if (_currentUser != null) {
-      try {
-        final response = await _roadmapService.updateStepProgress(
-          stepId: current.id,
-          completedChecklist: nextChecklist,
-          status: nextStatus,
-        );
+    try {
+      final response = await _roadmapService.updateStepProgress(
+        stepId: current.id,
+        completedChecklist: nextChecklist,
+        status: nextStatus,
+      );
 
-        _applyProgressUpdate(
-          stepId: current.id,
-          progressStatus: _progressStatusFromValue(response['progressStatus']),
-          completedChecklist: _extractStringList(response['completedChecklist']),
-          quizScore: _extractInt(response['quizScore']),
-        );
-      } catch (_) {}
+      _applyProgressUpdate(
+        stepId: current.id,
+        progressStatus: _progressStatusFromValue(response['progressStatus']),
+        completedChecklist: _extractStringList(response['completedChecklist']),
+        quizScore: _extractInt(response['quizScore']),
+      );
+    } catch (_) {
+      _applyProgressUpdate(
+        stepId: current.id,
+        progressStatus: previousStatus,
+        completedChecklist: previousChecklist,
+        quizScore: previousQuizScore,
+      );
+      return;
     }
 
     final refreshed = _findStep(current.id) ?? current;
@@ -537,6 +648,10 @@ class RoadmapProvider extends ChangeNotifier {
       return;
     }
 
+    final previousStatus = current.progressStatus;
+    final previousChecklist = current.completedChecklist;
+    final previousQuizScore = current.quizScore;
+
     // Optimistically mark completed locally
     _applyProgressUpdate(
       stepId: current.id,
@@ -545,21 +660,27 @@ class RoadmapProvider extends ChangeNotifier {
       quizScore: current.quizScore,
     );
 
-    if (_currentUser != null) {
-      try {
-        final response = await _roadmapService.updateStepProgress(
-          stepId: current.id,
-          completedChecklist: current.completedChecklist,
-          status: 'COMPLETED',
-        );
+    try {
+      final response = await _roadmapService.updateStepProgress(
+        stepId: current.id,
+        completedChecklist: current.completedChecklist,
+        status: 'COMPLETED',
+      );
 
-        _applyProgressUpdate(
-          stepId: current.id,
-          progressStatus: _progressStatusFromValue(response['progressStatus']),
-          completedChecklist: _extractStringList(response['completedChecklist']),
-          quizScore: _extractInt(response['quizScore']),
-        );
-      } catch (_) {}
+      _applyProgressUpdate(
+        stepId: current.id,
+        progressStatus: _progressStatusFromValue(response['progressStatus']),
+        completedChecklist: _extractStringList(response['completedChecklist']),
+        quizScore: _extractInt(response['quizScore']),
+      );
+    } catch (_) {
+      _applyProgressUpdate(
+        stepId: current.id,
+        progressStatus: previousStatus,
+        completedChecklist: previousChecklist,
+        quizScore: previousQuizScore,
+      );
+      return;
     }
 
     final refreshed = _findStep(current.id) ?? current;
@@ -701,9 +822,12 @@ class RoadmapProvider extends ChangeNotifier {
               return lesson;
             }
 
+            // Use item.isCompleted directly on the already-merged step list
+            // (isStepCompleted reads stale _topics and misses the just-updated step)
+            final doneCount = steps.where((s) => s.isCompleted).length;
             return lesson.copyWith(
               steps: steps,
-              completedStepsCount: steps.where((item) => isStepCompleted(item.id)).length,
+              completedStepsCount: doneCount,
               totalStepsCount: steps.length,
             );
           }).toList();
@@ -713,20 +837,21 @@ class RoadmapProvider extends ChangeNotifier {
           }
 
           final allSteps = lessons.expand((item) => item.steps).toList();
+          final doneTotalCount = allSteps.where((s) => s.isCompleted).length;
           return topic.copyWith(
             lessons: lessons,
-            completedStepsCount: allSteps.where((item) => isStepCompleted(item.id)).length,
+            completedStepsCount: doneTotalCount,
             totalStepsCount: allSteps.length,
             progressPercent: allSteps.isEmpty
                 ? 0
-                : ((allSteps.where((item) => isStepCompleted(item.id)).length / allSteps.length) * 100)
-                    .round(),
+                : ((doneTotalCount / allSteps.length) * 100).round(),
           );
         })
         .toList();
 
     return mergedStep ?? _findStep(incoming.id);
   }
+
 
   void _applyProgressUpdate({
     required String stepId,

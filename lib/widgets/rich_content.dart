@@ -2,6 +2,127 @@ import 'package:flutter/material.dart';
 
 import '../models/roadmap.dart';
 
+class HtmlTextParser {
+  static String decodeEntities(String text) {
+    return text
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&nbsp;', ' ');
+  }
+
+  static List<Widget> buildParagraphWidgets(String html, TextStyle baseStyle) {
+    if (html.trim().isEmpty) return [];
+
+    // Split HTML by </p>, <br/>, etc.
+    final rawBlocks = html
+        .split(RegExp(r'</p>|<br\s*/?>', caseSensitive: false))
+        .map((b) => b.replaceAll(RegExp(r'^<p>', caseSensitive: false), '').trim())
+        .where((b) => b.isNotEmpty)
+        .toList();
+
+    if (rawBlocks.isEmpty) {
+      final spans = parseSpans(html, baseStyle);
+      return spans.isEmpty ? [] : [Text.rich(TextSpan(children: spans))];
+    }
+
+    return rawBlocks.map((blockHtml) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text.rich(
+          TextSpan(
+            children: parseSpans(blockHtml, baseStyle),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  static List<InlineSpan> parseSpans(String htmlSnippet, TextStyle baseStyle) {
+    final spans = <InlineSpan>[];
+
+    // Regex matching HTML inline tags OR markdown bold / inline code syntax
+    final regex = RegExp(
+      r'<(strong|b|em|i|u|s|del|strike|code|h1|h2|h3)>([\s\S]*?)</\1>|(\*\*.*?\*\*|`.*?`)',
+      caseSensitive: false,
+    );
+
+    var cursor = 0;
+    final matches = regex.allMatches(htmlSnippet);
+
+    for (final match in matches) {
+      if (match.start > cursor) {
+        final textBefore = decodeEntities(htmlSnippet.substring(cursor, match.start));
+        if (textBefore.isNotEmpty) {
+          spans.add(TextSpan(text: textBefore, style: baseStyle));
+        }
+      }
+
+      final tag = match.group(1)?.toLowerCase();
+      final innerContent = match.group(2) ?? '';
+      final markdownToken = match.group(3) ?? '';
+
+      if (tag != null) {
+        TextStyle tagStyle = baseStyle;
+        if (tag == 'strong' || tag == 'b') {
+          tagStyle = baseStyle.copyWith(fontWeight: FontWeight.bold);
+        } else if (tag == 'h1') {
+          tagStyle = baseStyle.copyWith(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A));
+        } else if (tag == 'h2') {
+          tagStyle = baseStyle.copyWith(fontSize: 19, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A));
+        } else if (tag == 'h3') {
+          tagStyle = baseStyle.copyWith(fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A));
+        } else if (tag == 'em' || tag == 'i') {
+          tagStyle = baseStyle.copyWith(fontStyle: FontStyle.italic);
+        } else if (tag == 'u') {
+          tagStyle = baseStyle.copyWith(decoration: TextDecoration.underline);
+        } else if (tag == 's' || tag == 'del' || tag == 'strike') {
+          tagStyle = baseStyle.copyWith(decoration: TextDecoration.lineThrough);
+        } else if (tag == 'code') {
+          tagStyle = baseStyle.copyWith(
+            fontFamily: 'monospace',
+            backgroundColor: const Color(0xFFE2E8F0),
+            color: const Color(0xFF0F172A),
+            fontWeight: FontWeight.w600,
+          );
+        }
+
+        spans.addAll(parseSpans(innerContent, tagStyle));
+      } else if (markdownToken.isNotEmpty) {
+        if (markdownToken.startsWith('**') && markdownToken.endsWith('**')) {
+          spans.add(TextSpan(
+            text: decodeEntities(markdownToken.substring(2, markdownToken.length - 2)),
+            style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+          ));
+        } else if (markdownToken.startsWith('`') && markdownToken.endsWith('`')) {
+          spans.add(TextSpan(
+            text: decodeEntities(markdownToken.substring(1, markdownToken.length - 1)),
+            style: baseStyle.copyWith(
+              fontFamily: 'monospace',
+              backgroundColor: const Color(0xFFE2E8F0),
+              color: const Color(0xFF0F172A),
+              fontWeight: FontWeight.w600,
+            ),
+          ));
+        }
+      }
+
+      cursor = match.end;
+    }
+
+    if (cursor < htmlSnippet.length) {
+      final textAfter = decodeEntities(htmlSnippet.substring(cursor));
+      if (textAfter.isNotEmpty) {
+        spans.add(TextSpan(text: textAfter, style: baseStyle));
+      }
+    }
+
+    return spans;
+  }
+}
+
 class RichContentText extends StatelessWidget {
   const RichContentText(
     this.text, {
@@ -14,66 +135,17 @@ class RichContentText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text.rich(
-      TextSpan(
-        children: _buildInlineSpans(style),
-      ),
+    final widgets = HtmlTextParser.buildParagraphWidgets(text, style);
+    if (widgets.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    if (widgets.length == 1) {
+      return widgets.first;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
     );
-  }
-
-  List<InlineSpan> _buildInlineSpans(TextStyle baseStyle) {
-    final matches = RegExp(r'(\*\*.*?\*\*|`.*?`)').allMatches(text);
-    if (matches.isEmpty) {
-      return [TextSpan(text: text, style: baseStyle)];
-    }
-
-    final spans = <InlineSpan>[];
-    var cursor = 0;
-
-    for (final match in matches) {
-      if (match.start > cursor) {
-        spans.add(
-          TextSpan(
-            text: text.substring(cursor, match.start),
-            style: baseStyle,
-          ),
-        );
-      }
-
-      final token = match.group(0) ?? '';
-      if (token.startsWith('**') && token.endsWith('**')) {
-        spans.add(
-          TextSpan(
-            text: token.substring(2, token.length - 2),
-            style: baseStyle.copyWith(fontWeight: FontWeight.w700),
-          ),
-        );
-      } else if (token.startsWith('`') && token.endsWith('`')) {
-        spans.add(
-          TextSpan(
-            text: token.substring(1, token.length - 1),
-            style: baseStyle.copyWith(
-              fontFamily: 'monospace',
-              backgroundColor: const Color(0xFFE2E8F0),
-              color: const Color(0xFF0F172A),
-            ),
-          ),
-        );
-      }
-
-      cursor = match.end;
-    }
-
-    if (cursor < text.length) {
-      spans.add(
-        TextSpan(
-          text: text.substring(cursor),
-          style: baseStyle,
-        ),
-      );
-    }
-
-    return spans;
   }
 }
 
@@ -88,6 +160,7 @@ class StepContentRenderer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: blocks
           .asMap()
           .entries
@@ -96,7 +169,10 @@ class StepContentRenderer extends StatelessWidget {
               padding: EdgeInsets.only(
                 bottom: entry.key == blocks.length - 1 ? 0 : 24,
               ),
-              child: _ContentBlockView(block: entry.value),
+              child: SizedBox(
+                width: double.infinity,
+                child: _ContentBlockView(block: entry.value),
+              ),
             ),
           )
           .toList(),
@@ -432,7 +508,7 @@ class _CodeBlock extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           SelectableText(
-            block.body,
+            HtmlTextParser.decodeEntities(block.body),
             style: const TextStyle(
               fontFamily: 'monospace',
               fontSize: 13,

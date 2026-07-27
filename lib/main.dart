@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/roadmap_provider.dart';
@@ -15,7 +16,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seedColor = Color(0xFF124DA3);
+    const primaryGreen = Color(0xFF4EB748);
 
     return ChangeNotifierProvider(
       create: (_) => RoadmapProvider(),
@@ -25,20 +26,24 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: seedColor,
-            primary: const Color(0xFF124DA3),
-            secondary: const Color(0xFF4EB748),
+            seedColor: primaryGreen,
+            primary: primaryGreen,
+            secondary: const Color(0xFF124DA3),
             tertiary: const Color(0xFFF37022),
-            brightness: Brightness.light,
             surface: const Color(0xFFF8FAFC),
           ),
+          textTheme: GoogleFonts.interTextTheme(),
           scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-          fontFamily: 'Roboto',
-          appBarTheme: const AppBarTheme(
+          appBarTheme: AppBarTheme(
             backgroundColor: Colors.transparent,
-            foregroundColor: Color(0xFF0F172A),
+            foregroundColor: const Color(0xFF0F172A),
             elevation: 0,
             centerTitle: false,
+            titleTextStyle: GoogleFonts.inter(
+              color: const Color(0xFF0F172A),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           cardTheme: CardThemeData(
             color: Colors.white,

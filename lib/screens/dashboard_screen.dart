@@ -138,10 +138,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ],
                     ),
-                    Image.asset(
-                      'assets/logo.png',
-                      height: 42,
-                      fit: BoxFit.contain,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        height: 48,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ],
                 ),
@@ -286,6 +289,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 12),
+            if (provider.lastSyncError != null) ...[
+              _LoadWarning(message: provider.lastSyncError!),
+              const SizedBox(height: 12),
+            ],
+            if (provider.filteredTopics.isEmpty) ...[
+              const _EmptyTopicsCard(),
+              const SizedBox(height: 12),
+            ],
             ...provider.filteredTopics.map(
               (topic) => Padding(
                 padding: const EdgeInsets.only(bottom: 14),
@@ -420,6 +431,71 @@ class _TopicCard extends StatelessWidget {
   }
 }
 
+class _LoadWarning extends StatelessWidget {
+  const _LoadWarning({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF37022).withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: Color(0xFFF37022),
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: Color(0xFF7C2D12),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyTopicsCard extends StatelessWidget {
+  const _EmptyTopicsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: const Text(
+        'No topics are available from the backend yet. If the server is running, check whether the database already contains Spring Boot seed data.',
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.5,
+          color: Color(0xFF475569),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _TopicTagChip extends StatelessWidget {
   const _TopicTagChip({required this.label});
 
@@ -529,15 +605,15 @@ class _CategoryChip extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF37022) : Colors.white,
+          color: selected ? const Color(0xFF4EB748) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? const Color(0xFFF37022) : const Color(0xFFE2E8F0),
+            color: selected ? const Color(0xFF4EB748) : const Color(0xFFE2E8F0),
           ),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFF37022).withValues(alpha: 0.3),
+                    color: const Color(0xFF4EB748).withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),

@@ -1,4 +1,5 @@
 import '../models/roadmap.dart';
+import '../utils/api_config.dart';
 import 'api_client.dart';
 
 class AuthSession {
@@ -21,7 +22,7 @@ class AuthService {
     required String password,
   }) async {
     final data = await _apiClient.post(
-      '/api/v1/auth/login',
+      ApiEndpoints.login,
       requiresAuth: false,
       body: {
         'username': identifier.trim(),
@@ -29,9 +30,11 @@ class AuthService {
       },
     ) as Map<String, dynamic>;
 
+    final userJson = (data['user'] as Map<String, dynamic>?) ?? data;
+
     return AuthSession(
       token: data['token'] as String? ?? '',
-      user: LearningUser.fromJson(data['user'] as Map<String, dynamic>),
+      user: LearningUser.fromJson(userJson),
     );
   }
 
@@ -42,7 +45,7 @@ class AuthService {
     required String fullName,
   }) async {
     final data = await _apiClient.post(
-      '/api/v1/auth/register',
+      ApiEndpoints.register,
       requiresAuth: false,
       body: {
         'username': username.trim(),
@@ -52,14 +55,21 @@ class AuthService {
       },
     ) as Map<String, dynamic>;
 
+    final userJson = (data['user'] as Map<String, dynamic>?) ?? data;
+
     return AuthSession(
       token: data['token'] as String? ?? '',
-      user: LearningUser.fromJson(data['user'] as Map<String, dynamic>),
+      user: LearningUser.fromJson(userJson),
     );
   }
 
   Future<LearningUser> getUserById(String userId) async {
-    final data = await _apiClient.get('/api/v1/users/$userId') as Map<String, dynamic>;
+    final data = await _apiClient.get(ApiEndpoints.userDetail(userId)) as Map<String, dynamic>;
+    return LearningUser.fromJson(data);
+  }
+
+  Future<LearningUser> getMe() async {
+    final data = await _apiClient.get(ApiEndpoints.me) as Map<String, dynamic>;
     return LearningUser.fromJson(data);
   }
 }

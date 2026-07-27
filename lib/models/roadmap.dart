@@ -350,9 +350,14 @@ class StepNode {
   factory StepNode.fromJson(Map<String, dynamic> json) {
     final checklist = _parseChecklist(json['checklist']);
     final passThreshold = _intValue(json['passThreshold']);
-    final quizQuestions = (json['quizQuestions'] as List<dynamic>? ?? const <dynamic>[])
+    final quizQuestions = ((json['quizQuestions'] ?? json['quiz_questions']) as List<dynamic>? ??
+            const <dynamic>[])
         .map((item) => QuizQuestion.fromJson(item as Map<String, dynamic>))
         .toList();
+
+    final rawContentBlocks =
+        (json['contentBlocks'] ?? json['content_blocks']) as List<dynamic>? ??
+            const <dynamic>[];
 
     StepQuiz? quiz;
     final quizJson = json['quiz'];
@@ -367,28 +372,37 @@ class StepNode {
 
     return StepNode(
       id: _stringValue(json['id']),
-      lessonId: _stringValue(json['lessonId']),
+      lessonId: _stringValue(json['lessonId'] ?? json['lesson_id']),
       title: _stringValue(json['title']),
       description: _stringValue(json['description'] ?? json['summary']),
       emoji: _stringValue(json['emoji'], fallback: 'book'),
-      order: _intValue(json['order'] ?? json['orderIndex'], fallback: 1),
-      accessLevel: _parseAccessLevel(json['accessLevel']),
-      allowedGroupIds: _stringList(json['allowedGroupIds']),
-      prerequisiteStepIds: _stringList(json['prerequisiteStepIds']),
+      order: _intValue(json['order'] ?? json['orderIndex'] ?? json['order_index'], fallback: 1),
+      accessLevel: _parseAccessLevel(json['accessLevel'] ?? json['access_level']),
+      allowedGroupIds: _stringList(json['allowedGroupIds'] ?? json['allowed_group_ids']),
+      prerequisiteStepIds: _stringList(
+        json['prerequisiteStepIds'] ?? json['prerequisite_step_ids'],
+      ),
       checklist: checklist,
       quiz: quiz,
       note: _stringValue(json['note']),
       theory: _stringValue(json['theory']),
-      codeSnippet: _stringValue(json['codeSnippet']),
-      codeLanguage: _stringValue(json['codeLanguage']),
-      contentBlocks: (json['contentBlocks'] as List<dynamic>? ?? const <dynamic>[])
+      codeSnippet: _stringValue(json['codeSnippet'] ?? json['code_snippet']),
+      codeLanguage: _stringValue(json['codeLanguage'] ?? json['code_language']),
+      contentBlocks: rawContentBlocks
           .map((item) => StepContentBlock.fromJson(item as Map<String, dynamic>))
           .toList(),
-      xpReward: _intValue(json['xpReward'], fallback: 30),
-      estimatedMinutes: _intValue(json['estimatedMinutes'], fallback: 10),
-      progressStatus: _parseProgressStatus(json['progressStatus']),
-      completedChecklist: _stringList(json['completedChecklist']),
-      quizScore: _intValue(json['quizScore']),
+      xpReward: _intValue(json['xpReward'] ?? json['xp_reward'], fallback: 30),
+      estimatedMinutes: _intValue(
+        json['estimatedMinutes'] ?? json['estimated_minutes'],
+        fallback: 10,
+      ),
+      progressStatus: _parseProgressStatus(
+        json['progressStatus'] ?? json['progress_status'],
+      ),
+      completedChecklist: _stringList(
+        json['completedChecklist'] ?? json['completed_checklist'],
+      ),
+      quizScore: _intValue(json['quizScore'] ?? json['quiz_score']),
     );
   }
 
@@ -439,10 +453,13 @@ class StepNode {
 
   bool get hasQuiz => quiz != null && (quiz!.passThreshold > 0 || quiz!.questions.isNotEmpty);
 
+  /// A step with quiz is considered "passed" when:
+  /// 1. The server marked it completed (progressStatus == completed), OR
+  /// 2. quizScore (as %) is >= 70 (the server-side threshold)
   bool get hasPassedQuiz =>
       hasQuiz &&
-      quiz!.passThreshold > 0 &&
-      quizScore >= quiz!.passThreshold;
+      (progressStatus == ProgressStatus.completed ||
+          (quizScore > 0 && quizScore >= 70));
 
   bool get isCompleted => progressStatus == ProgressStatus.completed;
 }
@@ -509,17 +526,22 @@ class Lesson {
 
     return Lesson(
       id: _stringValue(json['id']),
-      topicId: _stringValue(json['topicId']),
+      topicId: _stringValue(json['topicId'] ?? json['topic_id']),
       title: _stringValue(json['title']),
       description: _stringValue(json['description'] ?? json['summary']),
-      order: _intValue(json['order'] ?? json['orderIndex'], fallback: 1),
-      accessLevel: _parseAccessLevel(json['accessLevel']),
-      allowedGroupIds: _stringList(json['allowedGroupIds']),
-      estimatedMinutes: _intValue(json['estimatedMinutes'], fallback: 30),
+      order: _intValue(json['order'] ?? json['orderIndex'] ?? json['order_index'], fallback: 1),
+      accessLevel: _parseAccessLevel(json['accessLevel'] ?? json['access_level']),
+      allowedGroupIds: _stringList(json['allowedGroupIds'] ?? json['allowed_group_ids']),
+      estimatedMinutes: _intValue(
+        json['estimatedMinutes'] ?? json['estimated_minutes'],
+        fallback: 30,
+      ),
       steps: steps,
-      completedStepsCount: _intValue(json['completedStepsCount']),
+      completedStepsCount: _intValue(
+        json['completedStepsCount'] ?? json['completed_steps_count'],
+      ),
       totalStepsCount: _intValue(
-        json['totalStepsCount'],
+        json['totalStepsCount'] ?? json['total_steps_count'],
         fallback: steps.length,
       ),
     );
@@ -624,14 +646,24 @@ class Topic {
       title: _stringValue(json['title']),
       description: _stringValue(json['description']),
       emoji: _stringValue(json['emoji'], fallback: 'sparkles'),
-      levelLabel: _stringValue(json['levelLabel'], fallback: 'Beginner'),
-      estimatedHours: _intValue(json['estimatedHours'], fallback: 0),
+      levelLabel: _stringValue(
+        json['levelLabel'] ?? json['level_label'],
+        fallback: 'Beginner',
+      ),
+      estimatedHours: _intValue(
+        json['estimatedHours'] ?? json['estimated_hours'],
+        fallback: 0,
+      ),
       lessons: (json['lessons'] as List<dynamic>? ?? const <dynamic>[])
           .map((item) => Lesson.fromJson(item as Map<String, dynamic>))
           .toList(),
-      progressPercent: _intValue(json['progressPercent']),
-      completedStepsCount: _intValue(json['completedStepsCount']),
-      totalStepsCount: _intValue(json['totalStepsCount']),
+      progressPercent: _intValue(json['progressPercent'] ?? json['progress_percent']),
+      completedStepsCount: _intValue(
+        json['completedStepsCount'] ?? json['completed_steps_count'],
+      ),
+      totalStepsCount: _intValue(
+        json['totalStepsCount'] ?? json['total_steps_count'],
+      ),
       tagDetails: tags,
     );
   }
@@ -686,7 +718,6 @@ class LearningUser {
   final String id;
   final String name;
   final String email;
-  final String password;
   final String avatar;
   final LearningPlan plan;
   final List<String> groupIds;
@@ -696,6 +727,7 @@ class LearningUser {
   final List<String> completedStepIds;
   final List<String> unlockedRewardedStepIds;
   final List<String> passedQuizStepIds;
+  final String role;
   final Map<String, List<String>> checklistState;
   final int completedStepsCount;
   final List<LearningGroup> groups;
@@ -704,9 +736,9 @@ class LearningUser {
     required this.id,
     required this.name,
     required this.email,
-    required this.password,
     required this.avatar,
     required this.plan,
+    this.role = 'USER',
     required this.groupIds,
     required this.streakDays,
     required this.gems,
@@ -719,11 +751,14 @@ class LearningUser {
     this.groups = const [],
   });
 
+  bool get isAdmin =>
+      role.toUpperCase().contains('ADMIN') ||
+      email.toLowerCase().contains('admin');
+
   LearningUser copyWith({
     String? id,
     String? name,
     String? email,
-    String? password,
     String? avatar,
     LearningPlan? plan,
     List<String>? groupIds,
@@ -741,7 +776,6 @@ class LearningUser {
       id: id ?? this.id,
       name: name ?? this.name,
       email: email ?? this.email,
-      password: password ?? this.password,
       avatar: avatar ?? this.avatar,
       plan: plan ?? this.plan,
       groupIds: groupIds ?? this.groupIds,
@@ -778,12 +812,12 @@ class LearningUser {
       id: _stringValue(json['id']),
       name: fullName,
       email: _stringValue(json['email']),
-      password: _stringValue(json['password']),
       avatar: _stringValue(
         json['avatar'],
         fallback: fullName.isEmpty ? 'L' : fullName.trim()[0].toUpperCase(),
       ),
       plan: _parseLearningPlan(json['plan']),
+      role: _stringValue(json['role'] ?? json['role_id'], fallback: 'USER'),
       groupIds: normalizedGroupIds,
       streakDays: _intValue(json['streakDays']),
       gems: _intValue(json['gems'], fallback: completedCount * 10),
@@ -802,7 +836,6 @@ class LearningUser {
       'id': id,
       'name': name,
       'email': email,
-      'password': password,
       'avatar': avatar,
       'plan': plan.name,
       'groupIds': groupIds,
@@ -911,9 +944,15 @@ List<ChecklistItem> _parseChecklist(dynamic raw) {
       return ChecklistItem.fromJson(item);
     }
 
+    // Checklists are stored as plain strings both in the seed data and in the
+    // admin editor, and completed_checklist_json stores the selected *text*.
+    // Use the text itself as the stable id so saved progress round-trips and
+    // pre-existing completion data matches (previously the synthetic
+    // "check-<index>" id never matched, so progress looked empty/reset).
+    final text = item.toString();
     return ChecklistItem(
-      id: 'check-${entry.key}',
-      text: item.toString(),
+      id: text,
+      text: text,
     );
   }).toList();
 }

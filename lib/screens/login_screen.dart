@@ -56,198 +56,261 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<RoadmapProvider>();
-    final lessonCount = provider.topics.fold<int>(
-      0,
-      (sum, topic) => sum + topic.lessons.length,
-    );
-    final stepCount = provider.topics.fold<int>(
-      0,
-      (sum, topic) =>
-          sum + topic.lessons.fold<int>(0, (inner, lesson) => inner + lesson.steps.length),
-    );
-
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0xFFE0F2FE),
-                Color(0xFFFFFBEB),
-                Color(0xFFF8FAFC),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Center(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-                shrinkWrap: true,
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Brand Logo Header (Học Mẹo with Primary Green #4EB748)
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4EB748),
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          child: const Center(
+                            child: Text('🎓', style: TextStyle(fontSize: 44)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '“Master skills smarter, not harder — your roadmap to effortless mastery.”',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Main Card
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(28),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Image.asset(
-                              'assets/logo.png',
-                              height: 38,
-                              fit: BoxFit.contain,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'HỌC MẸO',
-                              style: TextStyle(
-                                color: Color(0xFF124DA3),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        const Text(
-                          'Welcome back',
-                          style: TextStyle(
-                            fontSize: 28,
-                            height: 1.15,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Sign in to continue with Học Mẹo, restore your saved progress, and keep moving through each step in sequence.',
-                          style: TextStyle(
-                            fontSize: 15,
-                            height: 1.55,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            _MetricPill(label: '${provider.topics.length} topics'),
-                            _MetricPill(label: '$lessonCount blogs'),
-                            _MetricPill(label: '$stepCount steps'),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const _FieldLabel(label: 'Email or username'),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.username, AutofillHints.email],
-                                decoration: _inputDecoration(
-                                  hintText: 'you@example.com or your username',
-                                ),
-                                validator: (value) {
-                                  final text = value?.trim() ?? '';
-                                  if (text.isEmpty) {
-                                    return 'Enter your email or username.';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 18),
-                              const _FieldLabel(label: 'Password'),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                autofillHints: const [AutofillHints.password],
-                                onFieldSubmitted: (_) => _submit(),
-                                decoration: _inputDecoration(
-                                  hintText: 'Enter your password',
-                                  suffixIcon: IconButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if ((value ?? '').trim().isEmpty) {
-                                    return 'Enter your password.';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              if (_authMessage != null) ...[
-                                const SizedBox(height: 14),
-                                Text(
-                                  _authMessage!,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFFB91C1C),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 20),
-                              SizedBox(
-                                width: double.infinity,
-                                child: FilledButton(
-                                  onPressed: _isSubmitting ? null : _submit,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: const Color(0xFF2563EB),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 15),
-                                  ),
-                                  child: Text(_isSubmitting ? 'Signing in...' : 'Sign in'),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const RegisterScreen(),
-                                      ),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 15),
-                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
-                                  ),
-                                  child: const Text('Don\'t have an account? Sign up'),
-                                ),
-                              ),
-                            ],
-                          ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
                       ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Đăng nhập',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Nhập thông tin tài khoản để truy cập Học Mẹo',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF64748B),
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Email / Username Field
+                          const _FieldLabel(label: 'Email hoặc Tên đăng nhập'),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Color(0xFF0F172A),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            decoration: _inputDecoration(
+                              hintText: 'Nhập email hoặc tên đăng nhập',
+                            ),
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) {
+                                return 'Vui lòng nhập email hoặc tên đăng nhập.';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Password Field
+                          const _FieldLabel(label: 'Mật khẩu'),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.done,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Color(0xFF0F172A),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            onFieldSubmitted: (_) => _submit(),
+                            decoration: _inputDecoration(
+                              hintText: '••••••••',
+                              suffixIcon: IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: const Color(0xFF64748B),
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) {
+                                return 'Vui lòng nhập mật khẩu.';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          // Error Alert
+                          if (_authMessage != null) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFFCA5A5)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline_rounded,
+                                      color: Color(0xFF991B1B), size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      _authMessage!,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF991B1B),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 24),
+
+                          // Sign In Button (Green #4EB748)
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: FilledButton(
+                              onPressed: _isSubmitting ? null : _submit,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF4EB748),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Đăng nhập',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Register Link
+                          Center(
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const RegisterScreen(),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF4EB748),
+                              ),
+                              child: const Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: 'Chưa có tài khoản? ',
+                                      style: TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: 'Đăng ký ngay',
+                                      style: TextStyle(
+                                        color: Color(0xFF4EB748),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -267,30 +330,27 @@ class _LoginScreenState extends State<LoginScreen> {
       hintText: hintText,
       hintStyle: const TextStyle(
         color: Color(0xFF94A3B8),
+        fontSize: 14,
       ),
       filled: true,
       fillColor: const Color(0xFFF8FAFC),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       suffixIcon: suffixIcon,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF2563EB)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF4EB748), width: 1.8),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFFDC2626)),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFDC2626)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.8),
       ),
     );
   }
@@ -307,34 +367,8 @@ class _FieldLabel extends StatelessWidget {
       label,
       style: const TextStyle(
         fontSize: 13,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: Color(0xFF334155),
-      ),
-    );
-  }
-}
-
-class _MetricPill extends StatelessWidget {
-  const _MetricPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
-        ),
       ),
     );
   }

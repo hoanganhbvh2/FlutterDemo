@@ -1,4 +1,4 @@
-package com.example.flutter_demo;
+package com.kahoa.learning.roadmap;
 
 import io.flutter.embedding.android.FlutterActivity;
 

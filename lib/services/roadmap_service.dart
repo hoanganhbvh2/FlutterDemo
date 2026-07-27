@@ -1,4 +1,5 @@
 import '../models/roadmap.dart';
+import '../utils/api_config.dart';
 import 'api_client.dart';
 
 class RoadmapService {
@@ -7,19 +8,22 @@ class RoadmapService {
   final ApiClient _apiClient;
 
   Future<List<Topic>> getTopics() async {
-    final data = await _apiClient.get('/api/v1/topics') as List<dynamic>;
+    final data = await _apiClient.get(ApiEndpoints.topics, requiresAuth: false);
+    if (data is! List) {
+      throw const ApiException('The backend returned an unexpected response for topics.');
+    }
     return data
         .map((item) => Topic.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 
   Future<Topic> getTopicDetail(String topicId) async {
-    final data = await _apiClient.get('/api/v1/topics/$topicId') as Map<String, dynamic>;
+    final data = await _apiClient.get(ApiEndpoints.topicDetail(topicId), requiresAuth: false) as Map<String, dynamic>;
     return Topic.fromJson(data);
   }
 
   Future<StepNode> getStepDetail(String stepId) async {
-    final data = await _apiClient.get('/api/v1/steps/$stepId') as Map<String, dynamic>;
+    final data = await _apiClient.get(ApiEndpoints.stepDetail(stepId), requiresAuth: false) as Map<String, dynamic>;
     return StepNode.fromJson(data);
   }
 
@@ -29,7 +33,8 @@ class RoadmapService {
     required String status,
   }) async {
     final data = await _apiClient.put(
-      '/api/v1/steps/$stepId/progress',
+      ApiEndpoints.stepProgress(stepId),
+      requiresAuth: true,
       body: {
         'completedChecklist': completedChecklist,
         'status': status,
@@ -43,7 +48,8 @@ class RoadmapService {
     required List<int> selectedAnswers,
   }) async {
     final data = await _apiClient.post(
-      '/api/v1/steps/$stepId/quiz',
+      ApiEndpoints.stepQuiz(stepId),
+      requiresAuth: true,
       body: {
         'selectedAnswers': selectedAnswers,
       },
