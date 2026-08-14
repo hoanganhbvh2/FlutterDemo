@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/roadmap.dart';
+import '../providers/auth_provider.dart';
+import '../providers/plan_request_provider.dart';
 import '../providers/roadmap_provider.dart';
 import '../widgets/popover_help_button.dart';
 
@@ -37,7 +39,7 @@ class ProfileScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            onPressed: provider.logout,
+            onPressed: () => context.read<AuthProvider>().logout(),
             icon: const Icon(Icons.logout_rounded),
             tooltip: 'Log out',
           ),
@@ -45,8 +47,9 @@ class ProfileScreen extends StatelessWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
+          final planRequests = context.read<PlanRequestProvider>();
           await provider.refreshData();
-          await provider.fetchMyPlanRequests();
+          await planRequests.fetchMyPlanRequests();
         },
         color: const Color(0xFF4EB748),
         backgroundColor: Colors.white,
@@ -243,7 +246,7 @@ class _PlanRequestSectionState extends State<_PlanRequestSection> {
     _contentController = TextEditingController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<RoadmapProvider>().fetchMyPlanRequests();
+      context.read<PlanRequestProvider>().fetchMyPlanRequests();
     });
   }
 
@@ -266,8 +269,8 @@ class _PlanRequestSectionState extends State<_PlanRequestSection> {
       _statusMessage = null;
     });
 
-    final provider = context.read<RoadmapProvider>();
-    final error = await provider.submitPlanRequest(
+    final planProvider = context.read<PlanRequestProvider>();
+    final error = await planProvider.submitPlanRequest(
       name: _nameController.text,
       phone: _phoneController.text,
       content: _contentController.text,
@@ -291,8 +294,8 @@ class _PlanRequestSectionState extends State<_PlanRequestSection> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<RoadmapProvider>();
-    final myRequests = provider.myPlanRequests;
+    final provider = context.watch<PlanRequestProvider>();
+    final myRequests = provider.myRequests;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -511,7 +514,7 @@ class _PlanRequestSectionState extends State<_PlanRequestSection> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton.icon(
-                      onPressed: () => provider.fetchMyPlanRequests(),
+                      onPressed: () => context.read<PlanRequestProvider>().fetchMyPlanRequests(),
                       icon: const Icon(Icons.refresh_rounded, size: 16),
                       label: const Text('Làm mới'),
                       style: TextButton.styleFrom(
@@ -548,16 +551,16 @@ class _PlanRequestSectionState extends State<_PlanRequestSection> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: myRequests.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, index) => const SizedBox(height: 12),
+
                     itemBuilder: (context, index) {
                       final req = myRequests[index];
-                      final id = req['id'];
-                      final status = (req['status'] ?? 'PENDING').toString().toUpperCase();
-                      final name = req['name'] ?? '';
-                      final phone = req['phone'] ?? '';
-                      final content = req['content'] ?? '';
-                      final adminNote = req['admin_note'];
-                      final createdAt = (req['created_at'] ?? '').toString().split('T').first;
+                      final status = req.status.toUpperCase();
+                      final name = req.name;
+                      final phone = req.phone;
+                      final content = req.content;
+                      final adminNote = req.adminNote;
+                      final createdAt = req.createdAt.split('T').first;
 
                       final (statusLabel, statusBg, statusFg, statusIcon) = switch (status) {
                         'APPROVED' => ('ĐÃ DUYỆT', const Color(0xFFDCFCE7), const Color(0xFF15803D), Icons.check_circle_rounded),
@@ -579,7 +582,7 @@ class _PlanRequestSectionState extends State<_PlanRequestSection> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Ticket #$id',
+                                  'Ticket #${req.id}',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,

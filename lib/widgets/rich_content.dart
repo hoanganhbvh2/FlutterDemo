@@ -16,10 +16,12 @@ class HtmlTextParser {
   static List<Widget> buildParagraphWidgets(String html, TextStyle baseStyle) {
     if (html.trim().isEmpty) return [];
 
-    // Split HTML by </p>, <br/>, etc.
+    // Split HTML by p, br
     final rawBlocks = html
         .split(RegExp(r'</p>|<br\s*/?>', caseSensitive: false))
-        .map((b) => b.replaceAll(RegExp(r'^<p>', caseSensitive: false), '').trim())
+        .map(
+          (b) => b.replaceAll(RegExp(r'^<p>', caseSensitive: false), '').trim(),
+        )
         .where((b) => b.isNotEmpty)
         .toList();
 
@@ -31,11 +33,7 @@ class HtmlTextParser {
     return rawBlocks.map((blockHtml) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: Text.rich(
-          TextSpan(
-            children: parseSpans(blockHtml, baseStyle),
-          ),
-        ),
+        child: Text.rich(TextSpan(children: parseSpans(blockHtml, baseStyle))),
       );
     }).toList();
   }
@@ -43,7 +41,6 @@ class HtmlTextParser {
   static List<InlineSpan> parseSpans(String htmlSnippet, TextStyle baseStyle) {
     final spans = <InlineSpan>[];
 
-    // Regex matching HTML inline tags OR markdown bold / inline code syntax
     final regex = RegExp(
       r'<(strong|b|em|i|u|s|del|strike|code|h1|h2|h3)>([\s\S]*?)</\1>|(\*\*.*?\*\*|`.*?`)',
       caseSensitive: false,
@@ -54,7 +51,9 @@ class HtmlTextParser {
 
     for (final match in matches) {
       if (match.start > cursor) {
-        final textBefore = decodeEntities(htmlSnippet.substring(cursor, match.start));
+        final textBefore = decodeEntities(
+          htmlSnippet.substring(cursor, match.start),
+        );
         if (textBefore.isNotEmpty) {
           spans.add(TextSpan(text: textBefore, style: baseStyle));
         }
@@ -69,11 +68,23 @@ class HtmlTextParser {
         if (tag == 'strong' || tag == 'b') {
           tagStyle = baseStyle.copyWith(fontWeight: FontWeight.bold);
         } else if (tag == 'h1') {
-          tagStyle = baseStyle.copyWith(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A));
+          tagStyle = baseStyle.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF0F172A),
+          );
         } else if (tag == 'h2') {
-          tagStyle = baseStyle.copyWith(fontSize: 19, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A));
+          tagStyle = baseStyle.copyWith(
+            fontSize: 19,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF0F172A),
+          );
         } else if (tag == 'h3') {
-          tagStyle = baseStyle.copyWith(fontSize: 17, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A));
+          tagStyle = baseStyle.copyWith(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF0F172A),
+          );
         } else if (tag == 'em' || tag == 'i') {
           tagStyle = baseStyle.copyWith(fontStyle: FontStyle.italic);
         } else if (tag == 'u') {
@@ -92,20 +103,29 @@ class HtmlTextParser {
         spans.addAll(parseSpans(innerContent, tagStyle));
       } else if (markdownToken.isNotEmpty) {
         if (markdownToken.startsWith('**') && markdownToken.endsWith('**')) {
-          spans.add(TextSpan(
-            text: decodeEntities(markdownToken.substring(2, markdownToken.length - 2)),
-            style: baseStyle.copyWith(fontWeight: FontWeight.bold),
-          ));
-        } else if (markdownToken.startsWith('`') && markdownToken.endsWith('`')) {
-          spans.add(TextSpan(
-            text: decodeEntities(markdownToken.substring(1, markdownToken.length - 1)),
-            style: baseStyle.copyWith(
-              fontFamily: 'monospace',
-              backgroundColor: const Color(0xFFE2E8F0),
-              color: const Color(0xFF0F172A),
-              fontWeight: FontWeight.w600,
+          spans.add(
+            TextSpan(
+              text: decodeEntities(
+                markdownToken.substring(2, markdownToken.length - 2),
+              ),
+              style: baseStyle.copyWith(fontWeight: FontWeight.bold),
             ),
-          ));
+          );
+        } else if (markdownToken.startsWith('`') &&
+            markdownToken.endsWith('`')) {
+          spans.add(
+            TextSpan(
+              text: decodeEntities(
+                markdownToken.substring(1, markdownToken.length - 1),
+              ),
+              style: baseStyle.copyWith(
+                fontFamily: 'monospace',
+                backgroundColor: const Color(0xFFE2E8F0),
+                color: const Color(0xFF0F172A),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          );
         }
       }
 
@@ -124,11 +144,7 @@ class HtmlTextParser {
 }
 
 class RichContentText extends StatelessWidget {
-  const RichContentText(
-    this.text, {
-    super.key,
-    required this.style,
-  });
+  const RichContentText(this.text, {super.key, required this.style});
 
   final String text;
   final TextStyle style;
@@ -150,10 +166,7 @@ class RichContentText extends StatelessWidget {
 }
 
 class StepContentRenderer extends StatelessWidget {
-  const StepContentRenderer({
-    super.key,
-    required this.blocks,
-  });
+  const StepContentRenderer({super.key, required this.blocks});
 
   final List<StepContentBlock> blocks;
 
@@ -375,12 +388,7 @@ class _QuoteBlock extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 8, 0, 8),
       decoration: const BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: Color(0xFFCBD5E1),
-            width: 3,
-          ),
-        ),
+        border: Border(left: BorderSide(color: Color(0xFFCBD5E1), width: 3)),
       ),
       child: RichContentText(
         block.body,
@@ -396,10 +404,7 @@ class _QuoteBlock extends StatelessWidget {
 }
 
 class _MediaBlock extends StatelessWidget {
-  const _MediaBlock({
-    required this.block,
-    required this.label,
-  });
+  const _MediaBlock({required this.block, required this.label});
 
   final StepContentBlock block;
   final String label;
@@ -424,12 +429,14 @@ class _MediaBlock extends StatelessWidget {
         ],
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 360),
+            width: double.infinity,
+            color: const Color(0xFFF1F5F9),
             child: hasMedia && block.type == StepContentBlockType.image
                 ? Image.network(
                     block.mediaUrl,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
                         _MediaPlaceholder(label: label),
                     loadingBuilder: (context, child, progress) {
@@ -439,9 +446,14 @@ class _MediaBlock extends StatelessWidget {
                       return const _MediaPlaceholder(label: 'Loading image');
                     },
                   )
-                : _MediaPlaceholder(label: hasMedia ? '$label source ready' : '$label block ready'),
+                : _MediaPlaceholder(
+                    label: hasMedia
+                        ? '$label source ready'
+                        : '$label block ready',
+                  ),
           ),
         ),
+
         if (block.caption.trim().isNotEmpty) ...[
           const SizedBox(height: 10),
           RichContentText(
@@ -498,7 +510,8 @@ class _CodeBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            (block.codeLanguage.isEmpty ? 'text' : block.codeLanguage).toUpperCase(),
+            (block.codeLanguage.isEmpty ? 'text' : block.codeLanguage)
+                .toUpperCase(),
             style: const TextStyle(
               fontSize: 11,
               letterSpacing: 0.8,

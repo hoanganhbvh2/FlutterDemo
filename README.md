@@ -71,4 +71,4 @@ flutter run
 Mặc định ứng dụng kết nối tới Node.js Express Backend tại:
 - **Android Emulator**: `http://10.0.2.2:5001/api/v1`
 - **iOS Simulator / Local**: `http://localhost:5001/api/v1`
-- **Production Server**: Thay đổi `defaultBaseUrl` trong `lib/utils/api_config.dart`.
+- **Production Server**: Thay đổi `defaultBaseUrl` trong `lib/core/network/api_config.dart`.

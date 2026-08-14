@@ -9,14 +9,15 @@ import '../widgets/rich_content.dart';
 class StepDetailScreen extends StatefulWidget {
   const StepDetailScreen({
     super.key,
-    required this.topicId,
-    required this.lessonId,
+    this.topicId = '',
+    this.lessonId = '',
     required this.stepId,
   });
 
   final String topicId;
   final String lessonId;
   final String stepId;
+
 
   @override
   State<StepDetailScreen> createState() => _StepDetailScreenState();

@@ -245,6 +245,26 @@ class _LessonCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (lesson.code != null && lesson.code!.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF124DA3).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF124DA3).withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  lesson.code!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF124DA3),
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

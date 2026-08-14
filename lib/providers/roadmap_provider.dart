@@ -1,37 +1,28 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart' hide Category;
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/network/api_client.dart';
+import '../data/sample_data.dart';
 import '../models/roadmap.dart';
-import '../services/api_client.dart';
-import '../services/auth_service.dart';
+import '../providers/auth_provider.dart';
 import '../services/roadmap_service.dart';
-import '../services/secure_storage_service.dart';
 
 class RoadmapProvider extends ChangeNotifier {
-  static const _sessionKey = 'kahoa_current_user_v1';
-
-  RoadmapProvider()
-      : _apiClient = ApiClient(),
-        _secureStorage = SecureStorageService() {
-    _authService = AuthService(_apiClient);
+  RoadmapProvider(this._apiClient) {
     _roadmapService = RoadmapService(_apiClient);
-    _init();
   }
 
   final ApiClient _apiClient;
-  final SecureStorageService _secureStorage;
-  late AuthService _authService;
-  late RoadmapService _roadmapService;
+  late final RoadmapService _roadmapService;
 
-  bool _isLoading = true;
+  AuthProvider? _auth;
+
+  bool _isLoading = false;
   String? _lastSyncError;
   String? _selectedCategoryId;
   List<Category> _categories = [];
   List<LearningGroup> _groups = [];
   List<Topic> _topics = [];
-  LearningUser? _currentUser;
+  bool _bootstrapped = false;
 
   bool get isLoading => _isLoading;
   String? get lastSyncError => _lastSyncError;
@@ -39,78 +30,75 @@ class RoadmapProvider extends ChangeNotifier {
   List<Category> get categories => _categories;
   List<LearningGroup> get groups => _groups;
   List<Topic> get topics => _topics;
-  LearningUser? get currentUser => _currentUser;
 
-  Future<void> _init() async {
-    final token = await _secureStorage.getToken();
-    final prefs = await SharedPreferences.getInstance();
-    final rawUser = prefs.getString(_sessionKey);
+  RoadmapService get roadmapService => _roadmapService;
 
-    if (token != null && token.isNotEmpty) {
-      _apiClient.authToken = token;
+  LearningUser? get currentUser => _auth?.currentUser;
 
-      // Try fetching current user profile using JWT token
-      try {
-        _currentUser = await _authService.getMe();
-      } catch (_) {
-        // Fallback to cached profile if offline
-        if (rawUser != null) {
-          try {
-            _currentUser = LearningUser.fromJson(
-              jsonDecode(rawUser) as Map<String, dynamic>,
-            );
-          } catch (_) {
-            _currentUser = null;
-          }
-        }
-      }
+  // ── Auth integration────────────────────────────
+
+  void updateAuth(AuthProvider auth) {
+    _auth = auth;
+
+    if (!auth.isLoading && !_bootstrapped) {
+      _bootstrapped = true;
+      _loadData();
     }
+  }
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+
+  Future<void> _loadData() async {
+    _isLoading = true;
+    _lastSyncError = null;
+    notifyListeners();
 
     try {
-      await _bootstrapSession(refreshUser: false);
+      await _bootstrapSession();
     } on ApiException catch (error) {
       _lastSyncError = error.message;
+      if (_topics.isEmpty) {
+        _topics = sampleTopics;
+        _categories = sampleCategories;
+      }
     } catch (_) {
       _lastSyncError = 'Unable to load roadmap data from the backend.';
+      if (_topics.isEmpty) {
+        _topics = sampleTopics;
+        _categories = sampleCategories;
+      }
     }
 
     _isLoading = false;
     notifyListeners();
   }
 
-  Future<void> _bootstrapSession({bool refreshUser = false}) async {
+  Future<void> _bootstrapSession() async {
     _lastSyncError = null;
-    final user = _currentUser;
-    if (refreshUser && user != null && _apiClient.authToken != null) {
-      try {
-        _currentUser = await _authService.getMe();
-      } on ApiException catch (error) {
-        if (error.statusCode == 401) {
-          await _clearSession();
-          return;
-        }
-        _lastSyncError = error.message;
-      } catch (_) {
-        _lastSyncError ??= 'Unable to refresh your account from the backend.';
-      }
-    }
 
     final topicSummaries = await _roadmapService.getTopics();
     final topicDetails = <Topic>[];
-
     for (final topic in topicSummaries) {
       topicDetails.add(await _roadmapService.getTopicDetail(topic.id));
     }
-
     _topics = topicDetails;
-    _categories = _buildCategories(topicDetails);
-    _groups = _currentUser?.groups ?? const [];
-    await _persistSession();
+
+    try {
+      final fetchedCategories = await _roadmapService.getCategories();
+      _categories = fetchedCategories.isNotEmpty
+          ? fetchedCategories
+          : _buildCategories(topicDetails);
+    } catch (_) {
+      _categories = _buildCategories(topicDetails);
+    }
+
+    _groups = _auth?.currentUser?.groups ?? const [];
   }
 
   Future<void> refreshData() async {
     try {
-      await _bootstrapSession(refreshUser: true);
+      await _auth?.refreshUser();
+      await _bootstrapSession();
     } on ApiException catch (error) {
       _lastSyncError = error.message;
     } catch (_) {
@@ -140,56 +128,88 @@ class RoadmapProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _persistSession() async {
-    if (_apiClient.authToken != null && _apiClient.authToken!.isNotEmpty) {
-      await _secureStorage.saveToken(_apiClient.authToken!);
-    }
-    final prefs = await SharedPreferences.getInstance();
-    if (_currentUser != null) {
-      await prefs.setString(_sessionKey, jsonEncode(_currentUser!.toJson()));
-    }
-  }
+  // ── Search & Filter ───────────────────────────────────────────────────────
 
-  Future<void> _clearSession() async {
-    _apiClient.authToken = null;
-    _currentUser = null;
-    _topics = [];
-    _categories = [];
-    _groups = [];
-    _selectedCategoryId = null;
-
-    await _secureStorage.deleteToken();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_sessionKey);
-  }
+  String _searchQuery = '';
+  String get searchQuery => _searchQuery;
 
   List<Topic> get filteredTopics {
-    if (_selectedCategoryId == null) {
-      return _topics;
+    var result = _topics;
+
+    if (_selectedCategoryId != null) {
+      result = result
+          .where((item) => item.categoryIds.contains(_selectedCategoryId))
+          .toList();
     }
 
-    return _topics
-        .where((item) => item.tagIds.contains(_selectedCategoryId))
-        .toList();
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.trim().toLowerCase();
+      final isHashTagSearch = q.startsWith('#');
+      final cleanTagQuery = isHashTagSearch ? q.substring(1).trim() : q;
+
+      result = result.where((topic) {
+        final matchesTag = topic.tagDetails.any((t) {
+          final tTitle = t.title.toLowerCase();
+          return tTitle.contains(cleanTagQuery);
+        });
+
+        if (isHashTagSearch) return matchesTag;
+
+        final matchesTitle = topic.title.toLowerCase().contains(q);
+        final matchesDesc = topic.description.toLowerCase().contains(q);
+        final matchesLesson = topic.lessons.any((l) {
+          final codeMatch = l.code?.toLowerCase().contains(q) ?? false;
+          final titleMatch = l.title.toLowerCase().contains(q);
+          return codeMatch || titleMatch;
+        });
+
+        return matchesTitle || matchesDesc || matchesTag || matchesLesson;
+      }).toList();
+    }
+
+    return result;
+  }
+
+  int _displayLimit = 10;
+  int get displayLimit => _displayLimit;
+
+  List<Topic> get visibleTopics {
+    final all = filteredTopics;
+    if (all.length <= _displayLimit) return all;
+    return all.sublist(0, _displayLimit);
+  }
+
+  bool get hasMoreTopics => filteredTopics.length > _displayLimit;
+
+  void loadNextPage() {
+    if (hasMoreTopics) {
+      _displayLimit += 10;
+      notifyListeners();
+    }
   }
 
   Category? get selectedCategory {
     final selectedId = _selectedCategoryId;
-    if (selectedId == null) {
-      return null;
-    }
-
+    if (selectedId == null) return null;
     return _categories.where((item) => item.id == selectedId).firstOrNull;
   }
 
   void setCategoryFilter(String? categoryId) {
     _selectedCategoryId = categoryId;
+    _displayLimit = 10;
     notifyListeners();
   }
 
-  Topic? topicById(String topicId) {
-    return _topics.where((item) => item.id == topicId).firstOrNull;
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    _displayLimit = 10;
+    notifyListeners();
   }
+
+  // ── Lookup helpers ────────────────────────────────────────────────────────
+
+  Topic? topicById(String topicId) =>
+      _topics.where((item) => item.id == topicId).firstOrNull;
 
   Lesson? lessonById(String topicId, String lessonId) {
     final topic = topicById(topicId);
@@ -201,84 +221,7 @@ class RoadmapProvider extends ChangeNotifier {
     return lesson?.steps.where((item) => item.id == stepId).firstOrNull;
   }
 
-  List<Map<String, dynamic>> _myPlanRequests = [];
-  List<Map<String, dynamic>> get myPlanRequests => _myPlanRequests;
-
-  Future<void> fetchMyPlanRequests() async {
-    try {
-      final token = _apiClient.authToken;
-      if (token == null || token.isEmpty) return;
-      final res = await _apiClient.get('/api/v1/plan-requests/my');
-      if (res is List) {
-        _myPlanRequests = List<Map<String, dynamic>>.from(res);
-        notifyListeners();
-      }
-    } catch (_) {}
-  }
-
-  Future<String?> submitPlanRequest({
-    required String name,
-    required String phone,
-    required String content,
-  }) async {
-    try {
-      await _apiClient.post(
-        '/api/v1/plan-requests',
-        body: {
-          'name': name.trim(),
-          'phone': phone.trim(),
-          'content': content.trim(),
-        },
-      );
-      await fetchMyPlanRequests();
-      return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  List<Map<String, dynamic>> _adminPlanRequests = [];
-  List<Map<String, dynamic>> get adminPlanRequests => _adminPlanRequests;
-
-  Future<void> fetchAllPlanRequestsForAdmin({String status = 'ALL', String search = ''}) async {
-    try {
-      final token = _apiClient.authToken;
-      if (token == null || token.isEmpty) return;
-      final res = await _apiClient.get(
-        '/api/v1/admin/plan-requests?status=$status&search=$search',
-      );
-      if (res is Map<String, dynamic> && res.containsKey('items')) {
-        _adminPlanRequests = List<Map<String, dynamic>>.from(res['items'] as List);
-        notifyListeners();
-      }
-    } catch (_) {}
-  }
-
-  Future<String?> updatePlanRequestStatus({
-    required dynamic id,
-    required String status,
-    String? adminNote,
-  }) async {
-    try {
-      await _apiClient.patch(
-        '/api/v1/admin/plan-requests/$id',
-        body: {
-          'status': status,
-          'adminNote': adminNote,
-        },
-      );
-      await fetchAllPlanRequestsForAdmin();
-      await fetchMyPlanRequests();
-      await refreshData();
-      return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (e) {
-      return e.toString();
-    }
-  }
+  // ── Step progress ─────────────────────────────────────────────────────────
 
   Future<StepNode?> loadStepDetail(String stepId) async {
     try {
@@ -291,89 +234,17 @@ class RoadmapProvider extends ChangeNotifier {
     }
   }
 
-  Future<String?> loginWithCredentials({
-    required String email,
-    required String password,
-  }) async {
-    final identifier = email.trim();
-    final normalizedPassword = password.trim();
-
-    if (identifier.isEmpty || normalizedPassword.isEmpty) {
-      return 'Enter both username/email and password.';
-    }
-
-    try {
-      final session = await _authService.login(
-        identifier: identifier,
-        password: normalizedPassword,
-      );
-
-      _apiClient.authToken = session.token;
-      _currentUser = session.user;
-      _groups = session.user.groups;
-      await _bootstrapSession(refreshUser: true);
-      notifyListeners();
-      return null;
-    } on ApiException catch (error) {
-      await _clearSession();
-      notifyListeners();
-      return error.message;
-    } catch (_) {
-      await _clearSession();
-      notifyListeners();
-      return 'Unable to sign in right now. Please try again.';
-    }
-  }
-
-  Future<String?> registerAccount({
-    required String username,
-    required String email,
-    required String password,
-    required String fullName,
-  }) async {
-    try {
-      final session = await _authService.register(
-        username: username,
-        email: email,
-        password: password,
-        fullName: fullName,
-      );
-
-      _apiClient.authToken = session.token;
-      _currentUser = session.user;
-      _groups = session.user.groups;
-      await _bootstrapSession(refreshUser: true);
-      notifyListeners();
-      return null;
-    } on ApiException catch (error) {
-      await _clearSession();
-      notifyListeners();
-      return error.message;
-    } catch (_) {
-      await _clearSession();
-      notifyListeners();
-      return 'Unable to register right now. Please try again.';
-    }
-  }
-
-  Future<void> logout() async {
-    await _clearSession();
-    notifyListeners();
-  }
+  // ── Access control ────────────────────────────────────────────────────────
 
   bool get isPremiumUser {
-    final plan = _currentUser?.plan;
+    final plan = _auth?.currentUser?.plan;
     return plan == LearningPlan.premium || plan == LearningPlan.groupPro;
   }
 
   bool userHasGroup(List<String> allowedGroupIds) {
-    final user = _currentUser;
-    if (user == null) {
-      return false;
-    }
-    if (allowedGroupIds.isEmpty) {
-      return user.plan == LearningPlan.groupPro;
-    }
+    final user = _auth?.currentUser;
+    if (user == null) return false;
+    if (allowedGroupIds.isEmpty) return user.plan == LearningPlan.groupPro;
     return allowedGroupIds.any(user.groupIds.contains);
   }
 
@@ -391,28 +262,20 @@ class RoadmapProvider extends ChangeNotifier {
 
   bool isStepCompleted(String stepId) {
     final step = _findStep(stepId);
-    if (step != null && step.isCompleted) {
-      return true;
-    }
-    final user = _currentUser;
-    if (user != null && user.completedStepIds.contains(stepId)) {
-      return true;
-    }
+    if (step != null && step.isCompleted) return true;
+    final user = _auth?.currentUser;
+    if (user != null && user.completedStepIds.contains(stepId)) return true;
     return false;
   }
 
-  bool hasPassedQuiz(String stepId) {
-    return _findStep(stepId)?.hasPassedQuiz ?? false;
-  }
+  bool hasPassedQuiz(String stepId) =>
+      _findStep(stepId)?.hasPassedQuiz ?? false;
 
-  List<String> checklistProgressFor(String stepId) {
-    return _findStep(stepId)?.completedChecklist ?? const [];
-  }
+  List<String> checklistProgressFor(String stepId) =>
+      _findStep(stepId)?.completedChecklist ?? const [];
 
   bool isChecklistComplete(StepNode step) {
-    if (step.checklist.isEmpty) {
-      return true;
-    }
+    if (step.checklist.isEmpty) return true;
     final completedIds = checklistProgressFor(step.id).toSet();
     return step.checklist.every((item) => completedIds.contains(item.id));
   }
@@ -424,7 +287,6 @@ class RoadmapProvider extends ChangeNotifier {
     final current = _findStep(step.id) ?? step;
     final checklistTouched = checklistProgressFor(current.id).isNotEmpty;
 
-    // 1. Strict Access Level check (Lesson & Step level)
     if (!canAccessLesson(lesson)) {
       final needsPremium = lesson.accessLevel == AccessLevel.premium;
       return StepAccessInfo(
@@ -465,7 +327,6 @@ class RoadmapProvider extends ChangeNotifier {
       );
     }
 
-    // 2. Completion Status
     if (isStepCompleted(current.id)) {
       return const StepAccessInfo(
         canOpen: true,
@@ -478,13 +339,13 @@ class RoadmapProvider extends ChangeNotifier {
       );
     }
 
-    // 3. Sequential Prerequisite Check
     final prerequisiteId = current.prerequisiteStepIds.firstWhere(
       (item) => !isStepCompleted(item),
       orElse: () => '',
     );
     if (prerequisiteId.isNotEmpty) {
-      final prerequisiteTitle = _findStep(prerequisiteId)?.title ?? prerequisiteId;
+      final prerequisiteTitle =
+          _findStep(prerequisiteId)?.title ?? prerequisiteId;
       return StepAccessInfo(
         canOpen: false,
         needsQuiz: false,
@@ -515,8 +376,11 @@ class RoadmapProvider extends ChangeNotifier {
         needsRewardAd: false,
         needsPremium: false,
         needsGroup: false,
-        message: 'Read this step first, then return to the lesson to take the quiz.',
-        state: checklistTouched ? StepVisualState.inProgress : StepVisualState.ready,
+        message:
+            'Read this step first, then return to the lesson to take the quiz.',
+        state: checklistTouched
+            ? StepVisualState.inProgress
+            : StepVisualState.ready,
       );
     }
 
@@ -527,7 +391,9 @@ class RoadmapProvider extends ChangeNotifier {
       needsPremium: false,
       needsGroup: false,
       message: checklistTouched ? 'In progress.' : 'Ready to learn.',
-      state: checklistTouched ? StepVisualState.inProgress : StepVisualState.ready,
+      state: checklistTouched
+          ? StepVisualState.inProgress
+          : StepVisualState.ready,
     );
   }
 
@@ -537,13 +403,14 @@ class RoadmapProvider extends ChangeNotifier {
   }) async {
     final current = _findStep(step.id) ?? step;
     final quiz = current.quiz;
-    if (quiz == null || quiz.questions.isEmpty) {
-      return false;
-    }
+    if (quiz == null || quiz.questions.isEmpty) return false;
 
     final selectedAnswers = quiz.questions.asMap().entries.map((entry) {
       final question = entry.value;
-      return answers[question.id] ?? answers['q-${entry.key}'] ?? answers['${entry.key}'] ?? -1;
+      return answers[question.id] ??
+          answers['q-${entry.key}'] ??
+          answers['${entry.key}'] ??
+          -1;
     }).toList();
     final wasCompleted = current.isCompleted;
 
@@ -553,7 +420,8 @@ class RoadmapProvider extends ChangeNotifier {
         selectedAnswers: selectedAnswers,
       );
 
-      final passed = response['passed'] == true || response['hasPassedQuiz'] == true;
+      final passed =
+          response['passed'] == true || response['hasPassedQuiz'] == true;
       final serverStatus = _progressStatusFromValue(response['progressStatus']);
       final finalStatus = passed ? ProgressStatus.completed : serverStatus;
 
@@ -595,16 +463,15 @@ class RoadmapProvider extends ChangeNotifier {
     final nextStatus = current.isCompleted
         ? 'COMPLETED'
         : nextChecklist.isEmpty
-            ? 'NOT_STARTED'
-            : current.hasQuiz
-                ? 'IN_PROGRESS'
-                : isChecklistComplete(
-                    current.copyWith(completedChecklist: nextChecklist),
-                  )
-                    ? 'COMPLETED'
-                    : 'IN_PROGRESS';
+        ? 'NOT_STARTED'
+        : current.hasQuiz
+        ? 'IN_PROGRESS'
+        : isChecklistComplete(
+            current.copyWith(completedChecklist: nextChecklist),
+          )
+        ? 'COMPLETED'
+        : 'IN_PROGRESS';
 
-    // Optimistically update local state & notify screen listeners instantly
     _applyProgressUpdate(
       stepId: current.id,
       progressStatus: _progressStatusFromValue(nextStatus),
@@ -644,15 +511,12 @@ class RoadmapProvider extends ChangeNotifier {
 
   Future<void> markStepCompleted(StepNode step) async {
     final current = _findStep(step.id) ?? step;
-    if (current.isCompleted) {
-      return;
-    }
+    if (current.isCompleted) return;
 
     final previousStatus = current.progressStatus;
     final previousChecklist = current.completedChecklist;
     final previousQuizScore = current.quizScore;
 
-    // Optimistically mark completed locally
     _applyProgressUpdate(
       stepId: current.id,
       progressStatus: ProgressStatus.completed,
@@ -689,21 +553,19 @@ class RoadmapProvider extends ChangeNotifier {
     }
   }
 
+  // ── Progress & stats ───────────────────────────────────────────────────────
+
   double topicProgress(Topic topic) {
     final liveTopic = topicById(topic.id) ?? topic;
     final allSteps = liveTopic.lessons.expand((item) => item.steps).toList();
-    if (allSteps.isEmpty) {
-      return 0;
-    }
+    if (allSteps.isEmpty) return 0;
     final completed = allSteps.where((item) => item.isCompleted).length;
     return completed / allSteps.length;
   }
 
   double lessonProgress(Lesson lesson) {
     final liveLesson = lessonById(lesson.topicId, lesson.id) ?? lesson;
-    if (liveLesson.steps.isEmpty) {
-      return 0;
-    }
+    if (liveLesson.steps.isEmpty) return 0;
     final completed = liveLesson.steps.where((item) => item.isCompleted).length;
     return completed / liveLesson.steps.length;
   }
@@ -717,17 +579,26 @@ class RoadmapProvider extends ChangeNotifier {
     final stepCount = visibleTopics.fold<int>(
       0,
       (sum, topic) =>
-          sum + topic.lessons.fold<int>(0, (inner, lesson) => inner + lesson.steps.length),
+          sum +
+          topic.lessons.fold<int>(
+            0,
+            (inner, lesson) => inner + lesson.steps.length,
+          ),
     );
     final completedCount = visibleTopics.fold<int>(
       0,
-      (sum, topic) => sum + topic.lessons.fold<int>(
-        0,
-        (inner, lesson) => inner + lesson.steps.where((step) => step.isCompleted).length,
-      ),
+      (sum, topic) =>
+          sum +
+          topic.lessons.fold<int>(
+            0,
+            (inner, lesson) =>
+                inner + lesson.steps.where((step) => step.isCompleted).length,
+          ),
     );
 
-    final percent = stepCount == 0 ? 0 : ((completedCount / stepCount) * 100).round();
+    final percent = stepCount == 0
+        ? 0
+        : ((completedCount / stepCount) * 100).round();
 
     return {
       'topics': visibleTopics.length,
@@ -738,17 +609,15 @@ class RoadmapProvider extends ChangeNotifier {
     };
   }
 
+  // ── Private helpers ───────────────────────────────────────────────────────
+
   Future<void> _applyCompletionForUser(StepNode step) async {
-    final user = _currentUser;
-    if (user == null) {
-      return;
-    }
+    final auth = _auth;
+    final user = auth?.currentUser;
+    if (user == null) return;
+    if (user.completedStepIds.contains(step.id)) return;
 
-    if (user.completedStepIds.contains(step.id)) {
-      return;
-    }
-
-    _currentUser = user.copyWith(
+    final updatedUser = user.copyWith(
       completedStepIds: [...user.completedStepIds, step.id],
       completedStepsCount: user.completedStepsCount + 1,
       gems: user.gems + step.xpReward,
@@ -756,102 +625,92 @@ class RoadmapProvider extends ChangeNotifier {
           ? {...user.passedQuizStepIds, step.id}.toList()
           : user.passedQuizStepIds,
     );
-    _groups = _currentUser?.groups ?? const [];
-    await _persistSession();
+    _groups = updatedUser.groups;
+    auth!.updateUser(updatedUser);
     notifyListeners();
   }
 
   List<Category> _buildCategories(List<Topic> topics) {
-    final tagsById = <String, Category>{};
-
+    final categoriesById = <String, Category>{};
     for (final topic in topics) {
-      for (final tag in topic.tagDetails) {
-        tagsById[tag.id] = tag;
+      for (final cat in topic.categoryDetails) {
+        categoriesById[cat.id] = cat;
       }
     }
-
-    final tags = tagsById.values.toList()
+    return categoriesById.values.toList()
       ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-    return tags;
   }
 
   StepNode? _mergeStep(StepNode incoming) {
     StepNode? mergedStep;
 
-    _topics = _topics
-        .map((topic) {
-          bool topicHasStep = false;
-          final lessons = topic.lessons.map((lesson) {
-            bool lessonHasStep = false;
-            final steps = lesson.steps.map((step) {
-              if (step.id != incoming.id) {
-                return step;
-              }
+    _topics = _topics.map((topic) {
+      bool topicHasStep = false;
+      final lessons = topic.lessons.map((lesson) {
+        bool lessonHasStep = false;
+        final steps = lesson.steps.map((step) {
+          if (step.id != incoming.id) return step;
 
-              topicHasStep = true;
-              lessonHasStep = true;
-              mergedStep = step.copyWith(
-                title: incoming.title.isNotEmpty ? incoming.title : step.title,
-                description: incoming.description.isNotEmpty ? incoming.description : step.description,
-                accessLevel: incoming.accessLevel,
-                allowedGroupIds: incoming.allowedGroupIds,
-                prerequisiteStepIds: incoming.prerequisiteStepIds,
-                checklist: incoming.checklist.isNotEmpty ? incoming.checklist : step.checklist,
-                quiz: incoming.quiz ?? step.quiz,
-                note: incoming.note.isNotEmpty ? incoming.note : step.note,
-                theory: incoming.theory.isNotEmpty ? incoming.theory : step.theory,
-                codeSnippet: incoming.codeSnippet.isNotEmpty
-                    ? incoming.codeSnippet
-                    : step.codeSnippet,
-                codeLanguage: incoming.codeLanguage.isNotEmpty
-                    ? incoming.codeLanguage
-                    : step.codeLanguage,
-                contentBlocks: incoming.contentBlocks.isNotEmpty
-                    ? incoming.contentBlocks
-                    : step.contentBlocks,
-                xpReward: incoming.xpReward,
-                estimatedMinutes: incoming.estimatedMinutes,
-                progressStatus: incoming.progressStatus,
-                completedChecklist: incoming.completedChecklist,
-                quizScore: incoming.quizScore,
-              );
-              return mergedStep!;
-            }).toList();
-
-            if (!lessonHasStep) {
-              return lesson;
-            }
-
-            // Use item.isCompleted directly on the already-merged step list
-            // (isStepCompleted reads stale _topics and misses the just-updated step)
-            final doneCount = steps.where((s) => s.isCompleted).length;
-            return lesson.copyWith(
-              steps: steps,
-              completedStepsCount: doneCount,
-              totalStepsCount: steps.length,
-            );
-          }).toList();
-
-          if (!topicHasStep) {
-            return topic;
-          }
-
-          final allSteps = lessons.expand((item) => item.steps).toList();
-          final doneTotalCount = allSteps.where((s) => s.isCompleted).length;
-          return topic.copyWith(
-            lessons: lessons,
-            completedStepsCount: doneTotalCount,
-            totalStepsCount: allSteps.length,
-            progressPercent: allSteps.isEmpty
-                ? 0
-                : ((doneTotalCount / allSteps.length) * 100).round(),
+          topicHasStep = true;
+          lessonHasStep = true;
+          mergedStep = step.copyWith(
+            title: incoming.title.isNotEmpty ? incoming.title : step.title,
+            description: incoming.description.isNotEmpty
+                ? incoming.description
+                : step.description,
+            accessLevel: incoming.accessLevel,
+            allowedGroupIds: incoming.allowedGroupIds,
+            prerequisiteStepIds: incoming.prerequisiteStepIds,
+            checklist: incoming.checklist.isNotEmpty
+                ? incoming.checklist
+                : step.checklist,
+            quiz: incoming.quiz ?? step.quiz,
+            note: incoming.note.isNotEmpty ? incoming.note : step.note,
+            theory: incoming.theory.isNotEmpty ? incoming.theory : step.theory,
+            codeSnippet: incoming.codeSnippet.isNotEmpty
+                ? incoming.codeSnippet
+                : step.codeSnippet,
+            codeLanguage: incoming.codeLanguage.isNotEmpty
+                ? incoming.codeLanguage
+                : step.codeLanguage,
+            contentBlocks: incoming.contentBlocks.isNotEmpty
+                ? incoming.contentBlocks
+                : step.contentBlocks,
+            xpReward: incoming.xpReward,
+            estimatedMinutes: incoming.estimatedMinutes,
+            progressStatus: incoming.progressStatus,
+            completedChecklist: incoming.completedChecklist,
+            quizScore: incoming.quizScore,
           );
-        })
-        .toList();
+          return mergedStep!;
+        }).toList();
+
+        if (!lessonHasStep) return lesson;
+
+        final doneCount = steps.where((s) => s.isCompleted).length;
+        return lesson.copyWith(
+          steps: steps,
+          completedStepsCount: doneCount,
+          totalStepsCount: steps.length,
+        );
+      }).toList();
+
+      if (!topicHasStep) return topic;
+
+      final allSteps = lessons.expand((item) => item.steps).toList();
+      final doneTotalCount = allSteps.where((s) => s.isCompleted).length;
+      return topic.copyWith(
+        lessons: lessons,
+        completedStepsCount: doneTotalCount,
+        totalStepsCount: allSteps.length,
+        progressPercent: allSteps.isEmpty
+            ? 0
+            : ((doneTotalCount / allSteps.length) * 100).round(),
+      );
+    }).toList();
 
     return mergedStep ?? _findStep(incoming.id);
   }
-
 
   void _applyProgressUpdate({
     required String stepId,
@@ -860,9 +719,7 @@ class RoadmapProvider extends ChangeNotifier {
     required int quizScore,
   }) {
     final current = _findStep(stepId);
-    if (current == null) {
-      return;
-    }
+    if (current == null) return;
 
     final updatedStep = current.copyWith(
       progressStatus: progressStatus,
@@ -878,9 +735,7 @@ class RoadmapProvider extends ChangeNotifier {
     for (final topic in _topics) {
       for (final lesson in topic.lessons) {
         for (final step in lesson.steps) {
-          if (step.id == stepId) {
-            return step;
-          }
+          if (step.id == stepId) return step;
         }
       }
     }
@@ -888,13 +743,11 @@ class RoadmapProvider extends ChangeNotifier {
   }
 }
 
+// ── Module-level utilities ─────────────────────────────────────────────────
+
 int _extractInt(dynamic value) {
-  if (value is int) {
-    return value;
-  }
-  if (value is num) {
-    return value.toInt();
-  }
+  if (value is int) return value;
+  if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
@@ -918,9 +771,7 @@ ProgressStatus _progressStatusFromValue(dynamic value) {
 
 extension _IterableFirstOrNullExtension<T> on Iterable<T> {
   T? get firstOrNull {
-    if (isEmpty) {
-      return null;
-    }
+    if (isEmpty) return null;
     return first;
   }
 }

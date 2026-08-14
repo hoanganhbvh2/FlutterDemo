@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/roadmap_provider.dart';
+import '../providers/auth_provider.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -38,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _authMessage = null;
     });
 
-    final provider = context.read<RoadmapProvider>();
+    final provider = context.read<AuthProvider>();
     final error = await provider.loginWithCredentials(
       email: _emailController.text,
       password: _passwordController.text,

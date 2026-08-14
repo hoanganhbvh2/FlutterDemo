@@ -1,0 +1,8 @@
+{
+  "appName": "Học Mẹo",
+  "packageName": "com.hocmeo.learning.app",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "apiBaseUrl": "https://api.hocmeo.io.vn",
+  "environment": "production"
+}

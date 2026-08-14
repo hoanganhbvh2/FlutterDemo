@@ -80,8 +80,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             _onScroll(notification);
+            if (notification.metrics.pixels >= notification.metrics.maxScrollExtent - 250) {
+              if (provider.hasMoreTopics) {
+                provider.loadNextPage();
+              }
+            }
             return false;
           },
+
           child: Stack(
             children: [
               RefreshIndicator(
@@ -236,9 +242,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF124DA3).withValues(alpha: 0.06),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: TextEditingController(text: provider.searchQuery)
+                  ..selection = TextSelection.collapsed(offset: provider.searchQuery.length),
+                onChanged: (val) => provider.setSearchQuery(val),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                decoration: InputDecoration(
+                  hintText: 'Tìm kiếm chủ đề, #tag hoặc mã bài học (vd: BLOG-00001)...',
+                  hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
+                  prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF124DA3), size: 22),
+                  suffixIcon: provider.searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.cancel_rounded, color: Color(0xFF94A3B8), size: 20),
+                          onPressed: () => provider.setSearchQuery(''),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFF124DA3), width: 1.8),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
             const Text(
-              'Tag',
+              'Category',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -297,12 +349,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const _EmptyTopicsCard(),
               const SizedBox(height: 12),
             ],
-            ...provider.filteredTopics.map(
+            ...provider.visibleTopics.map(
               (topic) => Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: _TopicCard(topic: topic),
               ),
             ),
+            if (provider.hasMoreTopics) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Color(0xFF124DA3),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+
           ],
         ),
       ),
@@ -342,8 +411,7 @@ class _TopicCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<RoadmapProvider>();
     final progress = provider.topicProgress(topic);
-    final topicTags =
-        provider.categories.where((item) => topic.tagIds.contains(item.id)).toList();
+    final topicTags = topic.tagDetails;
     final completedSteps = topic.lessons
         .expand((item) => item.steps)
         .where((item) => provider.isStepCompleted(item.id))
@@ -401,10 +469,14 @@ class _TopicCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: topicTags
-                    .map((tag) => _TopicTagChip(label: tag.title))
+                    .map((tag) => _TopicTagChip(
+                          label: tag.title,
+                          onTap: () => provider.setSearchQuery('#${tag.title}'),
+                        ))
                     .toList(),
               ),
             ],
+
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -476,50 +548,90 @@ class _EmptyTopicsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<RoadmapProvider>();
+    final isFiltering =
+        provider.selectedCategoryId != null || provider.searchQuery.isNotEmpty;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: const Text(
-        'No topics are available from the backend yet. If the server is running, check whether the database already contains Spring Boot seed data.',
-        style: TextStyle(
-          fontSize: 13,
-          height: 1.5,
-          color: Color(0xFF475569),
-          fontWeight: FontWeight.w600,
-        ),
+      child: Column(
+        children: [
+          const Icon(Icons.search_off_rounded, size: 40, color: Color(0xFF94A3B8)),
+          const SizedBox(height: 10),
+          Text(
+            isFiltering
+                ? 'Không tìm thấy bài học nào phù hợp với danh mục hoặc từ khóa tìm kiếm.'
+                : 'Chưa có chủ đề bài học nào trên hệ thống.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Color(0xFF475569),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (isFiltering) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                provider.setCategoryFilter(null);
+                provider.setSearchQuery('');
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Xóa bộ lọc'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF124DA3),
+                side: const BorderSide(color: Color(0xFF124DA3)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
+
 class _TopicTagChip extends StatelessWidget {
-  const _TopicTagChip({required this.label});
+  const _TopicTagChip({required this.label, this.onTap});
 
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        '#$label',
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF475569),
+    final text = label.startsWith('#') ? label : '#$label';
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFF124DA3).withValues(alpha: 0.2)),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF124DA3),
+          ),
         ),
       ),
     );
   }
 }
+
 
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({

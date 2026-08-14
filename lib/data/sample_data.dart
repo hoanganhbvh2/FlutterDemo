@@ -1,5 +1,6 @@
-import 'roadmap.dart';
+import '../models/roadmap.dart';
 
+/// Static sample data used as a fallback when the API is unavailable.
 const sampleCategories = <Category>[
   Category(
     id: 'mobile',
@@ -306,7 +307,8 @@ final sampleTopics = <Topic>[
             checklist: const [
               ChecklistItem(
                 id: 'progress-1',
-                text: 'Track completed steps, quiz passes, and unlocked rewarded steps separately.',
+                text:
+                    'Track completed steps, quiz passes, and unlocked rewarded steps separately.',
               ),
               ChecklistItem(
                 id: 'progress-2',

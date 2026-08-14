@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import 'core/network/api_client.dart';
+import 'core/storage/secure_storage_service.dart';
+import 'core/theme/app_theme.dart';
+import 'providers/auth_provider.dart';
+import 'providers/plan_request_provider.dart';
 import 'providers/roadmap_provider.dart';
 import 'screens/app_shell.dart';
 import 'screens/login_screen.dart';
@@ -16,50 +20,40 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryGreen = Color(0xFF4EB748);
+    // Shared infrastructure — single instances injected into all providers.
+    final apiClient = ApiClient();
+    final secureStorage = SecureStorageService();
 
-    return ChangeNotifierProvider(
-      create: (_) => RoadmapProvider(),
+    return MultiProvider(
+      providers: [
+        // Auth must be first — other providers depend on it.
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(apiClient, secureStorage),
+        ),
+
+        // RoadmapProvider shares the same ApiClient and receives AuthProvider
+        // updates via ProxyProvider so it can re-bootstrap on auth changes.
+        ChangeNotifierProxyProvider<AuthProvider, RoadmapProvider>(
+          create: (_) => RoadmapProvider(apiClient),
+          update: (_, auth, roadmap) => roadmap!..updateAuth(auth),
+        ),
+
+        // PlanRequestProvider shares the same ApiClient.
+        ChangeNotifierProvider(
+          create: (_) => PlanRequestProvider(apiClient),
+        ),
+      ],
       child: MaterialApp(
         title: 'Học Mẹo',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: primaryGreen,
-            primary: primaryGreen,
-            secondary: const Color(0xFF124DA3),
-            tertiary: const Color(0xFFF37022),
-            surface: const Color(0xFFF8FAFC),
-          ),
-          textTheme: GoogleFonts.interTextTheme(),
-          scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-          appBarTheme: AppBarTheme(
-            backgroundColor: Colors.transparent,
-            foregroundColor: const Color(0xFF0F172A),
-            elevation: 0,
-            centerTitle: false,
-            titleTextStyle: GoogleFonts.inter(
-              color: const Color(0xFF0F172A),
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          cardTheme: CardThemeData(
-            color: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-          ),
-        ),
-        home: Consumer<RoadmapProvider>(
-          builder: (context, provider, _) {
-            if (provider.isLoading) {
+        theme: AppTheme.light,
+        home: Consumer2<AuthProvider, RoadmapProvider>(
+          builder: (context, auth, roadmap, _) {
+            // Show splash while auth is initialising OR while first data loads.
+            if (auth.isLoading || roadmap.isLoading) {
               return const SplashScreen();
             }
-            if (provider.currentUser == null) {
+            if (auth.currentUser == null) {
               return const LoginScreen();
             }
             return const AppShell();

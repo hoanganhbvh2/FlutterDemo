@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../utils/api_config.dart';
+import 'api_config.dart';
 
 class ApiClient {
   ApiClient({
@@ -132,10 +132,12 @@ class ApiClient {
       throw ApiException(_connectionErrorMessage());
     }
 
-    final payload = response.body.isEmpty ? null : jsonDecode(response.body);
+    final payload =
+        response.body.isEmpty ? null : jsonDecode(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
-        _extractMessage(payload) ?? 'Request failed with status ${response.statusCode}.',
+        _extractMessage(payload) ??
+            'Request failed with status ${response.statusCode}.',
         statusCode: response.statusCode,
       );
     }
@@ -144,7 +146,8 @@ class ApiClient {
       final code = payload['code'];
       if (code is int && code != 1000) {
         throw ApiException(
-          _extractMessage(payload) ?? 'The backend returned an unexpected response.',
+          _extractMessage(payload) ??
+              'The backend returned an unexpected response.',
           statusCode: response.statusCode,
         );
       }
@@ -164,33 +167,16 @@ class ApiClient {
     return null;
   }
 
-  static String _defaultBaseUrl() {
-    const configured = String.fromEnvironment('API_BASE_URL');
-    if (configured.isNotEmpty) {
-      return configured;
-    }
-
-    // The backend is deployed, so EVERY build mode (debug/profile/release)
-    // defaults to the real deployed API. Previously debug/profile builds
-    // pointed at localhost/10.0.2.2, which is unreachable on a real device or
-    // when no local server is running — that made the app fetch nothing.
-    //
-    // To develop against a local server instead, run Flutter with:
-    //   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5001   (Android emulator)
-    //   flutter run --dart-define=API_BASE_URL=http://localhost:5001  (iOS simulator / web)
-    return _productionBaseUrl;
-  }
-
-  static const String _productionBaseUrl = 'https://api.hocmeo.io.vn';
-
   String _connectionErrorMessage() {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       if (baseUrl.contains('10.0.2.2')) {
-        return 'The app is using $baseUrl. 10.0.2.2 only works on Android emulator. On iPhone, run Flutter with --dart-define=API_BASE_URL=http://<your-computer-LAN-IP>:5001.';
+        return 'The app is using $baseUrl. 10.0.2.2 only works on Android emulator. '
+            'On iPhone, run Flutter with --dart-define=API_BASE_URL=http://<your-computer-LAN-IP>:5001.';
       }
 
       if (baseUrl.contains('localhost') || baseUrl.contains('127.0.0.1')) {
-        return 'Cannot reach the backend at $baseUrl. On a real iPhone, localhost points to the phone itself. Run Flutter with --dart-define=API_BASE_URL=http://<your-computer-LAN-IP>:5001.';
+        return 'Cannot reach the backend at $baseUrl. On a real iPhone, localhost points to the '
+            'phone itself. Run Flutter with --dart-define=API_BASE_URL=http://<your-computer-LAN-IP>:5001.';
       }
     }
 

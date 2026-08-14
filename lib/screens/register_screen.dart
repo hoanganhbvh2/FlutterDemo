@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/roadmap_provider.dart';
+import '../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -41,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _errorMessage = null;
     });
 
-    final provider = context.read<RoadmapProvider>();
+    final provider = context.read<AuthProvider>();
     final error = await provider.registerAccount(
       username: _usernameController.text,
       email: _emailController.text,

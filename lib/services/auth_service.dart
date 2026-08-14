@@ -1,6 +1,6 @@
+import '../core/network/api_client.dart';
+import '../core/network/api_endpoints.dart';
 import '../models/roadmap.dart';
-import '../utils/api_config.dart';
-import 'api_client.dart';
 
 class AuthSession {
   const AuthSession({
@@ -64,12 +64,15 @@ class AuthService {
   }
 
   Future<LearningUser> getUserById(String userId) async {
-    final data = await _apiClient.get(ApiEndpoints.userDetail(userId)) as Map<String, dynamic>;
+    final data = await _apiClient.get(
+      ApiEndpoints.userDetail(userId),
+    ) as Map<String, dynamic>;
     return LearningUser.fromJson(data);
   }
 
   Future<LearningUser> getMe() async {
-    final data = await _apiClient.get(ApiEndpoints.me) as Map<String, dynamic>;
+    final data =
+        await _apiClient.get(ApiEndpoints.me) as Map<String, dynamic>;
     return LearningUser.fromJson(data);
   }
 }

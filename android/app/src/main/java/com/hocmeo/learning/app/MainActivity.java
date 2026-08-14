@@ -1,4 +1,4 @@
-package com.kahoa.learning.roadmap;
+package com.hocmeo.learning.app;
 
 import io.flutter.embedding.android.FlutterActivity;
 
